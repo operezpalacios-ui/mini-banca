@@ -3,8 +3,12 @@ package com.minibanca.core.repository;
 import com.minibanca.core.domain.Cuenta;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -20,5 +24,22 @@ public interface CuentaRepository extends JpaRepository<Cuenta, Long> {
     // Buscar SIEMPRE por id + dueño: así un usuario nunca puede ver la cuenta de otro (RF-1.5)
     Optional<Cuenta> findByIdAndUsuarioId(Long id, Long usuarioId);
 
+    boolean existsByIdAndUsuarioId(Long id, Long usuarioId);
+
     boolean existsByIban(String iban);
+
+    // --- Lección 3: el problema N+1 ---
+
+    // VERSIÓN LENTA: trae solo las cuentas. Los movimientos se cargarán después,
+    // UNO A UNO, cuando alguien llame a cuenta.getMovimientos()  -> 1 + N consultas
+    List<Cuenta> findByUsuarioIdOrderById(Long usuarioId);
+
+    // VERSIÓN RÁPIDA: @EntityGraph le dice a Hibernate "trae también los movimientos
+    // en la MISMA consulta" (un LEFT JOIN)  -> 1 consulta
+    @EntityGraph(attributePaths = "movimientos")
+    @Query("select c from Cuenta c where c.usuario.id = :usuarioId order by c.id")
+    List<Cuenta> findConMovimientosByUsuarioId(@Param("usuarioId") Long usuarioId);
+
+    // Alternativa equivalente con JPQL puro (JOIN FETCH):
+    // @Query("select c from Cuenta c left join fetch c.movimientos where c.usuario.id = :usuarioId order by c.id")
 }

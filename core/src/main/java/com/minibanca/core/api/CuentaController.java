@@ -1,6 +1,7 @@
 package com.minibanca.core.api;
 
 import com.minibanca.core.api.dto.CrearCuentaRequest;
+import com.minibanca.core.api.dto.CuentaConMovimientosResponse;
 import com.minibanca.core.api.dto.CuentaResponse;
 import com.minibanca.core.service.CuentaService;
 import jakarta.validation.Valid;
@@ -10,6 +11,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * Capa de CONTROLLER: solo traduce HTTP <-> Java. Nada de reglas de negocio aquí.
@@ -39,6 +42,13 @@ public class CuentaController {
             @RequestHeader("X-User-Id") Long usuarioId,
             @PageableDefault(size = 10, sort = "creadoEn", direction = Sort.Direction.DESC) Pageable pageable) {
         return new PagedModel<>(cuentaService.listar(usuarioId, pageable));
+    }
+
+    // Lección 3: GET /internal/v1/cuentas/resumen?optimizado=false  (o true)
+    @GetMapping("/resumen")
+    public List<CuentaConMovimientosResponse> resumen(@RequestHeader("X-User-Id") Long usuarioId,
+                                                      @RequestParam(defaultValue = "false") boolean optimizado) {
+        return cuentaService.resumen(usuarioId, optimizado);
     }
 
     @GetMapping("/{id}")

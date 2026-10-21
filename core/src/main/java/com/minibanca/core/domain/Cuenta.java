@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "cuenta")
@@ -39,6 +41,13 @@ public class Cuenta {
     @Column(name = "creado_en", nullable = false, updatable = false)
     private Instant creadoEn = Instant.now();
 
+    // Lado "uno": una cuenta tiene muchos movimientos.
+    // mappedBy = "cuenta" -> "el dueño de la relación es el campo 'cuenta' de Movimiento".
+    // @OneToMany es LAZY por defecto: los movimientos NO se cargan hasta que se usan.
+    @OneToMany(mappedBy = "cuenta")
+    @OrderBy("fecha DESC")
+    private List<Movimiento> movimientos = new ArrayList<>();
+
     protected Cuenta() {
     }
 
@@ -58,4 +67,5 @@ public class Cuenta {
     public EstadoCuenta getEstado() { return estado; }
     public Long getVersion() { return version; }
     public Instant getCreadoEn() { return creadoEn; }
+    public List<Movimiento> getMovimientos() { return movimientos; }
 }

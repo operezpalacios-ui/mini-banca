@@ -1,0 +1,20 @@
+### Lección 3: movimientos y el problema N+1
+
+@base = http://localhost:8080
+@ana = 1
+
+### 1. N+1 (LENTO): mira en la consola cuántos "select" salen
+GET {{base}}/internal/v1/cuentas/resumen?optimizado=false
+X-User-Id: {{ana}}
+
+### 2. Optimizado con @EntityGraph: 1 sola consulta
+GET {{base}}/internal/v1/cuentas/resumen?optimizado=true
+X-User-Id: {{ana}}
+
+### 3. Histórico de movimientos de la cuenta 1 (paginado, más recientes primero)
+GET {{base}}/internal/v1/cuentas/1/movimientos?size=5
+X-User-Id: {{ana}}
+
+### 4. ATAQUE: Luis intenta ver movimientos de la cuenta de Ana -> 404
+GET {{base}}/internal/v1/cuentas/1/movimientos
+X-User-Id: 2

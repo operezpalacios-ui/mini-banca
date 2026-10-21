@@ -1,6 +1,7 @@
 package com.minibanca.core.service;
 
 import com.minibanca.core.api.dto.CrearCuentaRequest;
+import com.minibanca.core.api.dto.CuentaConMovimientosResponse;
 import com.minibanca.core.api.dto.CuentaResponse;
 import com.minibanca.core.domain.Cuenta;
 import com.minibanca.core.domain.Usuario;
@@ -12,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 /**
  * Capa de SERVICIO: reglas de negocio y transacciones.
@@ -53,5 +56,20 @@ public class CuentaService {
         return cuentaRepository.findByIdAndUsuarioId(cuentaId, usuarioId)
                 .map(CuentaResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cuenta no encontrada"));
+    }
+
+    /**
+     * Lección 3: listado de cuentas CON sus movimientos.
+     * optimizado = false -> provoca el N+1 a propósito (1 consulta + 1 por cada cuenta)
+     * optimizado = true  -> @EntityGraph: todo en 1 consulta
+     */
+    public List<CuentaConMovimientosResponse> resumen(Long usuarioId, boolean optimizado) {
+        List<Cuenta> cuentas = optimizado
+                ? cuentaRepository.findConMovimientosByUsuarioId(usuarioId)
+                : cuentaRepository.findByUsuarioIdOrderById(usuarioId);
+
+        return cuentas.stream()
+                .map(CuentaConMovimientosResponse::from)
+                .toList();
     }
 }
