@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: core
+  config:
+    # En desarrollo lee DB_USER y DB_PASSWORD del .env de la raíz (si existe).
+    # En producción vendrán de variables de entorno reales.
+    import: optional:file:../.env[.properties]
+  datasource:
+    # Si DB_URL no está definida, usa el Postgres local de Docker
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/minibanca}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate      # Hibernate solo comprueba; las tablas las crea Flyway
+    open-in-view: false
+    show-sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always    # solo en desarrollo: verás el estado de la BBDD
