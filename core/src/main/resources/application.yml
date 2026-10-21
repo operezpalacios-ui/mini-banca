@@ -29,3 +29,8 @@ management:
   endpoint:
     health:
       show-details: always    # solo en desarrollo: verás el estado de la BBDD
+
+logging:
+  pattern:
+    # Lección 5: cada línea de log lleva el traceId de su petición -> [traceId=abc123...]
+    level: "%5p [traceId=%X{traceId:-}]"

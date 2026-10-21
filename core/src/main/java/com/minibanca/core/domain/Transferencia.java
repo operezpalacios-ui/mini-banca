@@ -29,10 +29,16 @@ public class Transferencia {
     @Column(nullable = false)
     private Instant fecha = Instant.now();
 
+    // Lección 5: la clave con la que el cliente pidió esta transferencia (única en BBDD)
+    @Column(name = "idempotency_key", unique = true)
+    private String idempotencyKey;
+
     protected Transferencia() {
     }
 
-    public Transferencia(Cuenta cuentaOrigen, Cuenta cuentaDestino, BigDecimal importe, String concepto) {
+    public Transferencia(Cuenta cuentaOrigen, Cuenta cuentaDestino, BigDecimal importe, String concepto,
+                         String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
         this.cuentaOrigen = cuentaOrigen;
         this.cuentaDestino = cuentaDestino;
         this.importe = importe;
@@ -45,4 +51,5 @@ public class Transferencia {
     public BigDecimal getImporte() { return importe; }
     public String getConcepto() { return concepto; }
     public Instant getFecha() { return fecha; }
+    public String getIdempotencyKey() { return idempotencyKey; }
 }

@@ -5,6 +5,10 @@ import com.minibanca.core.domain.Transferencia;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Lección 5: ya no incluye el saldo tras la operación. Con idempotencia, repetir la petición
+ * debe devolver EXACTAMENTE el resultado original, y el saldo "de ahora" podría ser otro.
+ */
 public record TransferenciaResponse(
         Long id,
         Long cuentaOrigenId,
@@ -12,8 +16,7 @@ public record TransferenciaResponse(
         String ibanDestino,
         BigDecimal importe,
         String concepto,
-        Instant fecha,
-        BigDecimal saldoOrigenTrasOperacion
+        Instant fecha
 ) {
     public static TransferenciaResponse from(Transferencia t) {
         return new TransferenciaResponse(
@@ -23,7 +26,6 @@ public record TransferenciaResponse(
                 t.getCuentaDestino().getIban(),
                 t.getImporte(),
                 t.getConcepto(),
-                t.getFecha(),
-                t.getCuentaOrigen().getSaldo());
+                t.getFecha());
     }
 }

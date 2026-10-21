@@ -1,4 +1,5 @@
 ### Lección 4: transferencias
+# Lección 5: cada POST lleva una Idempotency-Key NUEVA ({{$random.uuid}} genera una distinta cada vez)
 
 @base = http://localhost:8080
 @ana = 1
@@ -6,6 +7,7 @@
 ### 1. Transferencia normal: 50 € de la cuenta 1 (Nomina) a la cuenta 2 (Ahorro)
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -22,6 +24,7 @@ X-User-Id: {{ana}}
 ### 3. Saldo insuficiente -> 422
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -33,6 +36,7 @@ Content-Type: application/json
 ### 4. Misma cuenta origen y destino -> 422
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -44,6 +48,7 @@ Content-Type: application/json
 ### 5. Importe con 3 decimales -> 400 (lo para la validación, no llega al servicio)
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -55,6 +60,7 @@ Content-Type: application/json
 ### 6. Importe negativo -> 400
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -66,6 +72,7 @@ Content-Type: application/json
 ### 7. ATAQUE: Luis intenta sacar dinero de la cuenta de Ana -> 404
 POST {{base}}/internal/v1/transferencias
 X-User-Id: 2
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -78,6 +85,7 @@ Content-Type: application/json
 ### Mira el saldo de la cuenta 1 antes (petición 9) y después: NO debe cambiar.
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 X-Simular-Fallo: true
 Content-Type: application/json
 
@@ -95,6 +103,7 @@ X-User-Id: {{ana}}
 ### (tenía 874,14 €; pasamos 774,14 € a la cuenta 7). Ejecútala UNA sola vez.
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {
@@ -111,6 +120,7 @@ X-User-Id: {{ana}}
 ### 12. Recargar la cuenta 6 con 100 € desde la cuenta 7
 POST {{base}}/internal/v1/transferencias
 X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
 {

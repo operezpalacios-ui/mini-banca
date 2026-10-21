@@ -1,5 +1,6 @@
 package com.minibanca.core.domain;
 
+import com.minibanca.core.error.SaldoInsuficienteException;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -79,7 +80,7 @@ public class Cuenta {
 
     public void debitar(BigDecimal importe) {
         if (saldo.compareTo(importe) < 0) {
-            throw new IllegalStateException("Saldo insuficiente en la cuenta " + iban);
+            throw new SaldoInsuficienteException(iban);   // excepción de DOMINIO (lección 5)
         }
         this.saldo = this.saldo.subtract(importe);
     }

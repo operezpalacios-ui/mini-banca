@@ -5,14 +5,13 @@ import com.minibanca.core.api.dto.CuentaConMovimientosResponse;
 import com.minibanca.core.api.dto.CuentaResponse;
 import com.minibanca.core.domain.Cuenta;
 import com.minibanca.core.domain.Usuario;
+import com.minibanca.core.error.RecursoNoEncontradoException;
 import com.minibanca.core.repository.CuentaRepository;
 import com.minibanca.core.repository.UsuarioRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -40,7 +39,7 @@ public class CuentaService {
     @Transactional
     public CuentaResponse crear(Long usuarioId, CrearCuentaRequest request) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
 
         Cuenta cuenta = new Cuenta(usuario, generadorIban.generar(), request.alias(), request.divisa());
         return CuentaResponse.from(cuentaRepository.save(cuenta));
@@ -55,7 +54,7 @@ public class CuentaService {
         // Si la cuenta existe pero es de otro, respondemos 404 igual: no revelamos que existe (RF-1.5)
         return cuentaRepository.findByIdAndUsuarioId(cuentaId, usuarioId)
                 .map(CuentaResponse::from)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cuenta no encontrada"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Cuenta no encontrada"));
     }
 
     /**
