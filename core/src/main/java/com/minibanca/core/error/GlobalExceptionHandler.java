@@ -59,6 +59,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problema(HttpStatus.CONFLICT, "Conflicto", ex.getMessage(), req);
     }
 
+    // ----- Lección 7: login -----
+
+    @ExceptionHandler(CredencialesInvalidasException.class)
+    ProblemDetail credenciales(CredencialesInvalidasException ex, HttpServletRequest req) {
+        return problema(HttpStatus.UNAUTHORIZED, "Credenciales inválidas", ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(CuentaBloqueadaException.class)
+    ProblemDetail bloqueada(CuentaBloqueadaException ex, HttpServletRequest req) {
+        return problema(HttpStatus.UNAUTHORIZED, "Cuenta bloqueada", ex.getMessage(), req);
+    }
+
+    // ----- Lección 8 -----
+
+    @ExceptionHandler(SesionInvalidaException.class)
+    ProblemDetail sesionInvalida(SesionInvalidaException ex, HttpServletRequest req) {
+        return problema(HttpStatus.UNAUTHORIZED, "Sesión no válida", ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(UsuarioDesactivadoException.class)
+    ProblemDetail desactivado(UsuarioDesactivadoException ex, HttpServletRequest req) {
+        return problema(HttpStatus.UNAUTHORIZED, "Cuenta desactivada", ex.getMessage(), req);
+    }
+
     // ----- Excepciones técnicas que también tienen sentido para el cliente -----
 
     @ExceptionHandler(OptimisticLockingFailureException.class)

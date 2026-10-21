@@ -1,6 +1,9 @@
 package com.mini_banca.orquestador.cliente;
 
 import com.mini_banca.orquestador.api.dto.*;
+import com.mini_banca.orquestador.cliente.dto.RefreshTokenCore;
+import com.mini_banca.orquestador.cliente.dto.RotacionCore;
+import com.mini_banca.orquestador.cliente.dto.TotalCore;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +20,8 @@ import org.springframework.web.client.RestClientException;
 
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.math.BigDecimal;
+import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -100,6 +105,123 @@ public class CoreClient {
                 .toEntity(TransferenciaDto.class));
     }
 
+    // ===================== Lección 7: usuarios =====================
+
+    public UsuarioDto registrarUsuario(RegistroRequest request) {
+        Contexto ctx = Contexto.actual(null);
+        return proteger(() -> rest.post()
+                .uri("/internal/v1/usuarios")
+                .headers(ctx::aplicar)
+                .body(request)
+                .retrieve()
+                .body(UsuarioDto.class));
+    }
+
+    /** Si la contraseña no es válida, el core responde 401 y llega aquí como CoreErrorException. */
+    public UsuarioDto verificarCredenciales(LoginRequest request) {
+        Contexto ctx = Contexto.actual(null);
+        return proteger(() -> rest.post()
+                .uri("/internal/v1/auth/verificar")
+                .headers(ctx::aplicar)
+                .body(request)
+                .retrieve()
+                .body(UsuarioDto.class));
+    }
+
+    public Pagina<UsuarioDto> listarUsuarios(Long adminId, int page, int size) {
+        Contexto ctx = Contexto.actual(adminId);
+        return proteger(() -> conReintento(() -> rest.get()
+                .uri(u -> u.path("/internal/v1/usuarios").queryParam("page", page).queryParam("size", size).build())
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Pagina<UsuarioDto>>() {})));
+    }
+
+    // ===================== Lección 8: sesiones =====================
+
+    public RefreshTokenCore crearRefreshToken(Long usuarioId) {
+        Contexto ctx = Contexto.actual(null);
+        return proteger(() -> rest.post()
+                .uri("/internal/v1/auth/refresh-tokens")
+                .headers(ctx::aplicar)
+                .body(Map.of("usuarioId", usuarioId))
+                .retrieve()
+                .body(RefreshTokenCore.class));
+    }
+
+    public RotacionCore rotarRefreshToken(String refreshToken) {
+        Contexto ctx = Contexto.actual(null);
+        return proteger(() -> rest.post()
+                .uri("/internal/v1/auth/refresh-tokens/rotar")
+                .headers(ctx::aplicar)
+                .body(Map.of("refreshToken", refreshToken))
+                .retrieve()
+                .body(RotacionCore.class));
+    }
+
+    public void revocarRefreshToken(String refreshToken) {
+        Contexto ctx = Contexto.actual(null);
+        proteger(() -> rest.post()
+                .uri("/internal/v1/auth/refresh-tokens/revocar")
+                .headers(ctx::aplicar)
+                .body(Map.of("refreshToken", refreshToken))
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    // ===================== Lección 8: saga y administración =====================
+
+    public BigDecimal totalTransferidoHoy(Long usuarioId) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        TotalCore total = proteger(() -> conReintento(() -> rest.get()
+                .uri("/internal/v1/transferencias/total-hoy")
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(TotalCore.class)));
+        return total != null && total.total() != null ? total.total() : BigDecimal.ZERO;
+    }
+
+    public void auditar(Long usuarioId, String accion, String detalle) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        java.util.Map<String, Object> cuerpo = new java.util.HashMap<>();
+        cuerpo.put("usuarioId", usuarioId);
+        cuerpo.put("accion", accion);
+        cuerpo.put("detalle", detalle);
+        proteger(() -> rest.post()
+                .uri("/internal/v1/auditoria")
+                .headers(ctx::aplicar)
+                .body(cuerpo)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    public UsuarioDto cambiarBloqueo(Long adminId, Long usuarioId, boolean bloquear) {
+        Contexto ctx = Contexto.actual(adminId);
+        return proteger(() -> rest.put()
+                .uri("/internal/v1/usuarios/{id}/bloqueo", usuarioId)
+                .headers(ctx::aplicar)
+                .body(Map.of("bloqueado", bloquear))
+                .retrieve()
+                .body(UsuarioDto.class));
+    }
+
+    public Pagina<AuditoriaDto> buscarAuditoria(Long adminId, Long usuarioId, String accion,
+                                                String desde, String hasta, int page, int size) {
+        Contexto ctx = Contexto.actual(adminId);
+        return proteger(() -> conReintento(() -> rest.get()
+                .uri(u -> {
+                    u.path("/internal/v1/auditoria").queryParam("page", page).queryParam("size", size);
+                    if (usuarioId != null) u.queryParam("usuarioId", usuarioId);
+                    if (accion != null) u.queryParam("accion", accion);
+                    if (desde != null) u.queryParam("desde", desde);
+                    if (hasta != null) u.queryParam("hasta", hasta);
+                    return u.build();
+                })
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Pagina<AuditoriaDto>>() {})));
+    }
+
     // ===================== Resiliencia =====================
 
     /** Toda llamada pasa por el circuit breaker "core". Si falla, traducirFallo decide el código HTTP. */
@@ -170,7 +292,11 @@ public class CoreClient {
         }
 
         void aplicar(HttpHeaders h) {
-            h.set("X-User-Id", String.valueOf(usuarioId));   // provisional hasta la lección 7 (JWT)
+            if (usuarioId != null) {
+                // El id sale del JWT ya validado. El core sigue sin poder comprobarlo por sí mismo:
+                // en la lección 8 añadiremos seguridad servicio a servicio (RF-0.3).
+                h.set("X-User-Id", String.valueOf(usuarioId));
+            }
             if (traceId != null) {
                 h.set("X-Trace-Id", traceId);                // el MISMO traceId en los dos servicios
             }

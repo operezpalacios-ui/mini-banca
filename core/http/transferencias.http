@@ -1,4 +1,5 @@
 ### Lección 4: transferencias
+# Lección 8: el core exige X-Internal-Key. Ejecuta scripts/generar-http-env.ps1 y elige el entorno "dev".
 # Lección 5: cada POST lleva una Idempotency-Key NUEVA ({{$random.uuid}} genera una distinta cada vez)
 
 @base = http://localhost:8080
@@ -6,6 +7,7 @@
 
 ### 1. Transferencia normal: 50 € de la cuenta 1 (Nomina) a la cuenta 2 (Ahorro)
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -19,10 +21,12 @@ Content-Type: application/json
 
 ### 2. Ver los movimientos de la cuenta 1: arriba debe salir el CARGO de la transferencia
 GET {{base}}/internal/v1/cuentas/1/movimientos?size=3
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 3. Saldo insuficiente -> 422
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -35,6 +39,7 @@ Content-Type: application/json
 
 ### 4. Misma cuenta origen y destino -> 422
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -47,6 +52,7 @@ Content-Type: application/json
 
 ### 5. Importe con 3 decimales -> 400 (lo para la validación, no llega al servicio)
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -59,6 +65,7 @@ Content-Type: application/json
 
 ### 6. Importe negativo -> 400
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -71,6 +78,7 @@ Content-Type: application/json
 
 ### 7. ATAQUE: Luis intenta sacar dinero de la cuenta de Ana -> 404
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: 2
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -84,6 +92,7 @@ Content-Type: application/json
 ### 8. ROLLBACK: fallo simulado DESPUÉS del débito -> 500
 ### Mira el saldo de la cuenta 1 antes (petición 9) y después: NO debe cambiar.
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 X-Simular-Fallo: true
@@ -97,11 +106,13 @@ Content-Type: application/json
 
 ### 9. Ver el saldo de la cuenta 1
 GET {{base}}/internal/v1/cuentas/1
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 10. PREPARAR la prueba de concurrencia: dejar la cuenta 6 ("Extra 1") con 100 € exactos
 ### (tenía 874,14 €; pasamos 774,14 € a la cuenta 7). Ejecútala UNA sola vez.
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -115,10 +126,12 @@ Content-Type: application/json
 
 ### 11. Ver el saldo de la cuenta 6
 GET {{base}}/internal/v1/cuentas/6
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 12. Recargar la cuenta 6 con 100 € desde la cuenta 7
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json

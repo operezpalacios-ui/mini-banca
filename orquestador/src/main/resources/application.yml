@@ -4,12 +4,27 @@ server:
 spring:
   application:
     name: orquestador
+  config:
+    # Lección 7: leemos JWT_SECRET del .env de la raíz (igual que hace el core con la BBDD)
+    import: optional:file:../.env[.properties],optional:file:./.env[.properties]
 
 # Dónde está el core y cuánto estamos dispuestos a esperarle (RF-0.4)
 core:
   url: ${CORE_URL:http://localhost:8080}
   connect-timeout: 2s   # si en 2 s no consigo ni conectar, el core está caído
   read-timeout: 5s      # si conecta pero tarda más de 5 s en responder, dejo de esperar
+  # Lección 8 (RF-0.3): la "contraseña" para hablar con el core. La misma que tiene el core.
+  api-key: ${INTERNAL_API_KEY:}
+
+# Lección 8 (RF-0.5): límite de lo que un usuario puede transferir en un día
+transferencias:
+  limite-diario: 1000.00
+
+# Lección 7: tokens JWT. La clave SOLO la conoce el orquestador (RF-11).
+jwt:
+  secret: ${JWT_SECRET:}       # vacío -> la app NO arranca (mejor fallar pronto que firmar con nada)
+  emisor: minibanca
+  duracion: 15m                # access token de corta duración (RF-1.2)
 
 management:
   endpoints:

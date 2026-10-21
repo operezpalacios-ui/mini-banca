@@ -17,10 +17,15 @@ param(
 )
 
 Add-Type -AssemblyName System.Net.Http
+
+# Leccion 8: el core exige la clave interna. La leemos del .env (nunca la escribimos en el script).
+$lineaClave = Get-Content (Join-Path (Split-Path $PSScriptRoot -Parent) '.env') | Where-Object { $_ -like 'INTERNAL_API_KEY=*' } | Select-Object -First 1
+if (-not $lineaClave) { Write-Host "Falta INTERNAL_API_KEY en el .env" -ForegroundColor Red; exit 1 }
+$claveInterna = $lineaClave.Substring('INTERNAL_API_KEY='.Length).Trim()
 $base = "http://localhost:8080/internal/v1"
 $client = New-Object System.Net.Http.HttpClient
 
-$saldoAntes = (Invoke-RestMethod "$base/cuentas/$Origen" -Headers @{ "X-User-Id" = $UsuarioId }).saldo
+$saldoAntes = (Invoke-RestMethod "$base/cuentas/$Origen" -Headers @{ "X-User-Id" = $UsuarioId; "X-Internal-Key" = $claveInterna }).saldo
 Write-Host "Saldo inicial de la cuenta ${Origen}: $saldoAntes"
 Write-Host "Lanzando $Hilos transferencias de $Importe a la vez (bloqueo $Bloqueo)..."
 
@@ -33,6 +38,7 @@ for ($i = 1; $i -le $Hilos; $i++) {
     $json = @{ cuentaOrigenId = $Origen; ibanDestino = $IbanDestino; importe = $Importe; concepto = "Concurrencia $i" } | ConvertTo-Json
     $peticion = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Post, "$base/transferencias?bloqueo=$Bloqueo")
     $peticion.Headers.Add("X-User-Id", $UsuarioId)
+    $peticion.Headers.Add("X-Internal-Key", $claveInterna)
     if ($MismaClave) { $clave = $claveComun } else { $clave = [guid]::NewGuid().ToString() }
     $peticion.Headers.Add("Idempotency-Key", $clave)
     $peticion.Content = New-Object System.Net.Http.StringContent($json, [System.Text.Encoding]::UTF8, "application/json")
@@ -47,7 +53,7 @@ $tareas | Group-Object { [int]$_.Result.StatusCode } | Sort-Object Name | ForEac
     Write-Host ("  {0} x {1}   -> {2}" -f $_.Name, $_.Count, $significado)
 }
 
-$saldoDespues = (Invoke-RestMethod "$base/cuentas/$Origen" -Headers @{ "X-User-Id" = $UsuarioId }).saldo
+$saldoDespues = (Invoke-RestMethod "$base/cuentas/$Origen" -Headers @{ "X-User-Id" = $UsuarioId; "X-Internal-Key" = $claveInterna }).saldo
 function EsRepetida($respuesta) {
     $valores = $null
     if ($respuesta.Headers.TryGetValues("Idempotent-Replayed", [ref]$valores)) { return (($valores -join "") -eq "true") }

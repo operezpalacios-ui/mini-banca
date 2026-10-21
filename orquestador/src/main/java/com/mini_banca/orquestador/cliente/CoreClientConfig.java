@@ -33,7 +33,12 @@ public class CoreClientConfig {
     @Bean
     RestClient coreRestClient(@Value("${core.url}") String url,
                               @Value("${core.connect-timeout}") Duration connectTimeout,
-                              @Value("${core.read-timeout}") Duration readTimeout) {
+                              @Value("${core.read-timeout}") Duration readTimeout,
+                              @Value("${core.api-key}") String apiKey) {
+        if (apiKey == null || apiKey.length() < 32) {
+            throw new IllegalStateException(
+                    "Falta INTERNAL_API_KEY (mínimo 32 caracteres). Añádela al .env (instrucciones de la lección 8).");
+        }
         HttpClient http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(connectTimeout)
@@ -44,6 +49,8 @@ public class CoreClientConfig {
         return RestClient.builder()
                 .baseUrl(url)
                 .requestFactory(factory)
+                // Lección 8: TODAS las llamadas al core llevan la clave interna (RF-0.3)
+                .defaultHeader("X-Internal-Key", apiKey)
                 // Si el core responde 4xx/5xx, leemos su ProblemDetail y lanzamos CoreErrorException
                 .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> {
                     throw new CoreErrorException(response.getStatusCode(), leerProblema(response.getBody().readAllBytes()));

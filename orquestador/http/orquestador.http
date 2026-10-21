@@ -1,24 +1,36 @@
-### Lección 6: probar el ORQUESTADOR (puerto 8081), que a su vez llama al core (8080)
-# Necesitas los DOS arrancados: CoreApplication y OrquestadorApplication.
+### Lección 6 (actualizado en la lección 7): el orquestador ahora exige TOKEN.
+# Ejecuta primero la petición 0 (login): guarda el token en {{token}} para las demás.
 
 @orq = http://localhost:8081
-@ana = 1
 
-### 1. Listar cuentas A TRAVÉS del orquestador (fíjate: /api/v1, no /internal/v1)
+### 0. Login de Ana -> guarda {{token}}
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@test.com",
+  "password": "ana-12345"
+}
+
+> {%
+    client.global.set("token", response.body.accessToken);
+%}
+
+### 1. Listar cuentas A TRAVÉS del orquestador
 GET {{orq}}/api/v1/cuentas?size=3
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}
 
 ### 2. Detalle de una cuenta
 GET {{orq}}/api/v1/cuentas/1
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}
 
 ### 3. Movimientos
 GET {{orq}}/api/v1/cuentas/1/movimientos?size=3
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}
 
 ### 4. Transferencia a través del orquestador
 POST {{orq}}/api/v1/transferencias
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
@@ -29,9 +41,9 @@ Content-Type: application/json
   "concepto": "Vía orquestador"
 }
 
-### 5. Error de NEGOCIO que viene del core (422): el orquestador lo reenvía tal cual
+### 5. Error de NEGOCIO que viene del core (422)
 POST {{orq}}/api/v1/transferencias
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
@@ -41,9 +53,9 @@ Content-Type: application/json
   "importe": 999999.00
 }
 
-### 6. Error de VALIDACIÓN que para el propio orquestador (400): el core ni se entera
+### 6. Error de VALIDACIÓN que para el propio orquestador (400)
 POST {{orq}}/api/v1/transferencias
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
 
@@ -52,15 +64,6 @@ Content-Type: application/json
   "importe": -1
 }
 
-### 7. Cuenta ajena (404 que viene del core). Fíjate en "instance": es la ruta PÚBLICA, no la interna
+### 7. RESILIENCIA: para el core y lanza esta petición varias veces (503 -> circuito abierto)
 GET {{orq}}/api/v1/cuentas/1
-X-User-Id: 2
-
-### ------------------------------------------------------------------
-### 8. RESILIENCIA: PARA el core (■ en IntelliJ) y lanza esta petición varias veces.
-###    - Las primeras: 503 "El servicio interno no está disponible" (tardan un poco: intenta conectar)
-###    - A partir de la 5ª: en la consola del orquestador sale "CIRCUIT BREAKER 'core': CLOSED_TO_OPEN"
-###      y las respuestas pasan a ser 503 INSTANTÁNEAS (ni lo intenta: el diferencial ha saltado)
-###    - Arranca el core, espera 15 s y vuelve a lanzarla: OPEN_TO_HALF_OPEN -> HALF_OPEN_TO_CLOSED
-GET {{orq}}/api/v1/cuentas/1
-X-User-Id: {{ana}}
+Authorization: Bearer {{token}}

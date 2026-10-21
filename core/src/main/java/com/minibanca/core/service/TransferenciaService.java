@@ -2,6 +2,7 @@ package com.minibanca.core.service;
 
 import com.minibanca.core.api.dto.CrearTransferenciaRequest;
 import com.minibanca.core.api.dto.TransferenciaResponse;
+import com.minibanca.core.domain.AccionAuditoria;
 import com.minibanca.core.domain.Cuenta;
 import com.minibanca.core.domain.Movimiento;
 import com.minibanca.core.domain.TipoMovimiento;
@@ -15,6 +16,10 @@ import com.minibanca.core.repository.TransferenciaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 
 @Service
@@ -23,13 +28,16 @@ public class TransferenciaService {
     private final CuentaRepository cuentaRepository;
     private final MovimientoRepository movimientoRepository;
     private final TransferenciaRepository transferenciaRepository;
+    private final AuditoriaService auditoria;
 
     public TransferenciaService(CuentaRepository cuentaRepository,
                                 MovimientoRepository movimientoRepository,
-                                TransferenciaRepository transferenciaRepository) {
+                                TransferenciaRepository transferenciaRepository,
+                                AuditoriaService auditoria) {
         this.cuentaRepository = cuentaRepository;
         this.movimientoRepository = movimientoRepository;
         this.transferenciaRepository = transferenciaRepository;
+        this.auditoria = auditoria;
     }
 
     /**
@@ -87,6 +95,11 @@ public class TransferenciaService {
                 "Transferencia a " + destino.getIban()));
 
         if (simularFallo) {
+            // Lección 8: este registro va en su PROPIA transacción (REQUIRES_NEW), así que se queda
+            // guardado aunque justo después hagamos rollback de la transferencia. Compruébalo en
+            // /api/admin/auditoria: aparece TRANSFERENCIA_FALLIDA, pero el saldo no ha cambiado.
+            auditoria.registrar(usuarioId, AccionAuditoria.TRANSFERENCIA_FALLIDA,
+                    "Fallo simulado tras debitar " + request.importe() + " de la cuenta " + origen.getIban());
             throw new IllegalStateException("Fallo simulado después del débito");
         }
 
@@ -98,6 +111,15 @@ public class TransferenciaService {
                 new Transferencia(origen, destino, request.importe(), request.concepto(), idempotencyKey));
 
         return new ResultadoTransferencia(TransferenciaResponse.from(transferencia), false);
+    }
+
+    /** Lección 8: total transferido HOY (hora de Madrid) por el usuario, para el límite diario. */
+    @Transactional(readOnly = true)
+    public BigDecimal totalTransferidoHoy(Long usuarioId) {
+        Instant inicioDelDia = LocalDate.now(ZoneId.of("Europe/Madrid"))
+                .atStartOfDay(ZoneId.of("Europe/Madrid")).toInstant();
+        BigDecimal total = transferenciaRepository.totalTransferidoDesde(usuarioId, inicioDelDia);
+        return total != null ? total : BigDecimal.ZERO;
     }
 
     private boolean esLaMismaOperacion(Transferencia t, CrearTransferenciaRequest r) {

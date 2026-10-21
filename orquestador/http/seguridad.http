@@ -1,0 +1,101 @@
+### Lección 7: seguridad (registro, login, JWT, roles)
+# Necesitas los DOS servicios arrancados. Todo va contra el ORQUESTADOR (8081).
+
+@orq = http://localhost:8081
+
+### 1. REGISTRO de un usuario nuevo -> 201 (la 2ª vez que lo lances: 409, el email ya existe)
+POST {{orq}}/api/v1/auth/registro
+Content-Type: application/json
+
+{
+  "email": "carla@test.com",
+  "password": "carla-12345",
+  "nombre": "Carla"
+}
+
+### 2. Registro con contraseña corta y email mal -> 400 con la lista de errores
+POST {{orq}}/api/v1/auth/registro
+Content-Type: application/json
+
+{
+  "email": "esto-no-es-un-email",
+  "password": "123",
+  "nombre": "X"
+}
+
+### 3. LOGIN de Ana -> 200 con el token. El script de abajo lo GUARDA en la variable {{token}}
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@test.com",
+  "password": "ana-12345"
+}
+
+> {%
+    client.global.set("token", response.body.accessToken);
+%}
+
+### 4. ¿Quién soy? (usa el token guardado). Copia el token en https://jwt.io para ver lo que lleva dentro
+GET {{orq}}/api/v1/auth/yo
+Authorization: Bearer {{token}}
+
+### 5. Mis cuentas, ahora CON token (ya no hay X-User-Id)
+GET {{orq}}/api/v1/cuentas?size=3
+Authorization: Bearer {{token}}
+
+### 6. SIN token -> 401
+GET {{orq}}/api/v1/cuentas
+
+### 7. Token FALSIFICADO (le he cambiado letras a la firma) -> 401
+GET {{orq}}/api/v1/cuentas
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJtaW5pYmFuY2EiLCJzdWIiOiIxIiwicm9sIjoiQURNSU4ifQ.FIRMA-FALSA
+
+### 8. Ana (USER) intenta entrar en la zona de ADMIN -> 403
+GET {{orq}}/api/admin/usuarios
+Authorization: Bearer {{token}}
+
+### 9. LOGIN como ADMIN -> guarda {{tokenAdmin}}
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin-12345"
+}
+
+> {%
+    client.global.set("tokenAdmin", response.body.accessToken);
+%}
+
+### 10. El ADMIN sí puede listar usuarios -> 200 (fíjate: ningún passwordHash en la respuesta)
+GET {{orq}}/api/admin/usuarios
+Authorization: Bearer {{tokenAdmin}}
+
+### 11. FUERZA BRUTA: lanza esta petición 5 veces (contraseña mala para Luis).
+### Las 4 primeras -> 401 "Credenciales inválidas". La 5ª -> 401 "Cuenta bloqueada".
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "luis@test.com",
+  "password": "contraseña-mala"
+}
+
+### 12. Ahora, aunque la contraseña sea CORRECTA, Luis está bloqueado 15 minutos -> 401 "Cuenta bloqueada"
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "luis@test.com",
+  "password": "luis-12345"
+}
+
+### 13. Email que no existe -> el MISMO mensaje que contraseña mala (no revelamos qué emails existen)
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "nadie@test.com",
+  "password": "lo-que-sea-123"
+}

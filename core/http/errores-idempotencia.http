@@ -1,4 +1,5 @@
 ### Lección 5: idempotencia y errores ProblemDetail
+# Lección 8: el core exige X-Internal-Key. Ejecuta scripts/generar-http-env.ps1 y elige el entorno "dev".
 # Mira en cada respuesta: el código HTTP, las cabeceras (Idempotent-Replayed, X-Trace-Id)
 # y el cuerpo con type / title / status / detail / instance / traceId.
 
@@ -7,6 +8,7 @@
 
 ### 1. IDEMPOTENCIA: transferencia con una clave FIJA -> 201, Idempotent-Replayed: false
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: leccion5-prueba-0002
 Content-Type: application/json
@@ -21,6 +23,7 @@ Content-Type: application/json
 ### 2. La MISMA petición otra vez (como si el usuario pulsara dos veces)
 ### -> 201, MISMO id, Idempotent-Replayed: true, y NO se cobra otra vez
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: leccion5-prueba-0002
 Content-Type: application/json
@@ -34,6 +37,7 @@ Content-Type: application/json
 
 ### 3. Misma clave pero OTRO importe -> 409 Conflicto
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: leccion5-prueba-0002
 Content-Type: application/json
@@ -46,10 +50,12 @@ Content-Type: application/json
 
 ### 4. Comprueba el histórico: solo UN cargo de 5 € (aunque lo pediste dos veces)
 GET {{base}}/internal/v1/cuentas/1/movimientos?size=3
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 5. Sin Idempotency-Key -> 400 ProblemDetail
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Content-Type: application/json
 
@@ -61,6 +67,7 @@ Content-Type: application/json
 
 ### 6. VARIOS campos mal a la vez -> 400 con la lista "errores" (un elemento por campo)
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -72,6 +79,7 @@ Content-Type: application/json
 
 ### 7. Saldo insuficiente -> 422 "Saldo insuficiente" (viene de SaldoInsuficienteException)
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 Content-Type: application/json
@@ -84,20 +92,24 @@ Content-Type: application/json
 
 ### 8. Cuenta que no existe -> 404 ProblemDetail
 GET {{base}}/internal/v1/cuentas/99999
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 9. Ruta que no existe -> 404 ProblemDetail (lo genera Spring, pero con NUESTRO formato)
 GET {{base}}/internal/v1/esto-no-existe
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 10. X-User-Id que no es un número -> 400
 GET {{base}}/internal/v1/cuentas
+X-Internal-Key: {{internalKey}}
 X-User-Id: hola
 
 ### 11. Error inesperado (fallo simulado) -> 500 SIN detalles internos, pero CON traceId.
 ### Copia el traceId de la respuesta y búscalo en la consola de IntelliJ (Ctrl+F):
 ### ahí sí está la traza completa del error.
 POST {{base}}/internal/v1/transferencias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Idempotency-Key: {{$random.uuid}}
 X-Simular-Fallo: true

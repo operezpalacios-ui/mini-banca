@@ -2,6 +2,7 @@ package com.minibanca.core.domain;
 
 import jakarta.persistence.*;
 
+import java.time.Duration;
 import java.time.Instant;
 
 @Entity
@@ -28,6 +29,17 @@ public class Usuario {
     @Column(name = "creado_en", nullable = false, updatable = false)
     private Instant creadoEn = Instant.now();
 
+    // Lección 7: protección contra fuerza bruta
+    @Column(name = "intentos_fallidos", nullable = false)
+    private int intentosFallidos = 0;
+
+    @Column(name = "bloqueado_hasta")
+    private Instant bloqueadoHasta;
+
+    // Lección 8 (RF-6.2): un ADMIN puede desactivar la cuenta indefinidamente
+    @Column(nullable = false)
+    private boolean activo = true;
+
     protected Usuario() {
         // JPA necesita un constructor vacío
     }
@@ -45,4 +57,31 @@ public class Usuario {
     public String getNombre() { return nombre; }
     public Rol getRol() { return rol; }
     public Instant getCreadoEn() { return creadoEn; }
+    public int getIntentosFallidos() { return intentosFallidos; }
+    public Instant getBloqueadoHasta() { return bloqueadoHasta; }
+    public boolean isActivo() { return activo; }
+
+    public void desactivar() { this.activo = false; }
+
+    public void activar() { this.activo = true; }
+
+    // --- Lección 7: reglas de login, dentro de la entidad ---
+
+    public boolean estaBloqueado(Instant ahora) {
+        return bloqueadoHasta != null && ahora.isBefore(bloqueadoHasta);
+    }
+
+    /** Suma un fallo. Al llegar al máximo, bloquea la cuenta durante 'duracion' y reinicia el contador. */
+    public void registrarIntentoFallido(Instant ahora, int maximo, Duration duracion) {
+        intentosFallidos++;
+        if (intentosFallidos >= maximo) {
+            bloqueadoHasta = ahora.plus(duracion);
+            intentosFallidos = 0;
+        }
+    }
+
+    public void registrarAccesoCorrecto() {
+        intentosFallidos = 0;
+        bloqueadoHasta = null;
+    }
 }

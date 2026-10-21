@@ -4,7 +4,8 @@ spring:
   config:
     # En desarrollo lee DB_USER y DB_PASSWORD del .env de la raíz (si existe).
     # En producción vendrán de variables de entorno reales.
-    import: optional:file:../.env[.properties]
+    # Lo buscamos en la carpeta padre (si arrancas desde core/) y en la actual (si arrancas desde mini-banca/)
+    import: optional:file:../.env[.properties],optional:file:./.env[.properties]
   datasource:
     # Si DB_URL no está definida, usa el Postgres local de Docker
     url: ${DB_URL:jdbc:postgresql://localhost:5432/minibanca}
@@ -20,6 +21,10 @@ spring:
         # Lección 3: al final de cada petición Hibernate dice cuántas consultas SQL ha lanzado
         # ("... executing N JDBC statements"). Útil para cazar el N+1; en producción, false.
         generate_statistics: true
+
+# Lección 8 (RF-0.3): clave compartida con el orquestador. Sin ella, /internal/** responde 401.
+internal:
+  api-key: ${INTERNAL_API_KEY:}
 
 management:
   endpoints:

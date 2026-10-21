@@ -1,6 +1,7 @@
 package com.minibanca.core.api;
 
 import com.minibanca.core.api.dto.CrearTransferenciaRequest;
+import com.minibanca.core.api.dto.TotalResponse;
 import com.minibanca.core.api.dto.TransferenciaResponse;
 import com.minibanca.core.service.ModoBloqueo;
 import com.minibanca.core.service.ResultadoTransferencia;
@@ -48,5 +49,11 @@ public class TransferenciaController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .header("Idempotent-Replayed", String.valueOf(resultado.repetida()))
                 .body(resultado.transferencia());
+    }
+
+    /** Lección 8: lo usa el orquestador para comprobar el límite diario (RF-0.5, paso 1). */
+    @GetMapping("/total-hoy")
+    public TotalResponse totalHoy(@RequestHeader("X-User-Id") Long usuarioId) {
+        return new TotalResponse(transferenciaService.totalTransferidoHoy(usuarioId));
     }
 }

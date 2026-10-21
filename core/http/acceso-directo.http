@@ -1,0 +1,20 @@
+### Lección 8: el core ya NO acepta llamadas de cualquiera (RF-0.3)
+@base = http://localhost:8080
+
+### 1. SIN la clave interna -> 401 "Este servicio es interno..."
+###    Antes de esta lección, esto devolvía las cuentas de Ana a cualquiera que llegara al puerto 8080.
+GET {{base}}/internal/v1/cuentas
+X-User-Id: 1
+
+### 2. Con una clave INVENTADA -> 401
+GET {{base}}/internal/v1/cuentas
+X-User-Id: 1
+X-Internal-Key: me-la-invento-a-ver-si-cuela-1234567890
+
+### 3. Con la clave buena (entorno "dev", creado con scripts/generar-http-env.ps1) -> 200
+GET {{base}}/internal/v1/cuentas
+X-User-Id: 1
+X-Internal-Key: {{internalKey}}
+
+### 4. El health check sigue abierto (no está bajo /internal)
+GET {{base}}/actuator/health

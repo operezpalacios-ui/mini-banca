@@ -2,6 +2,7 @@ package com.mini_banca.orquestador.error;
 
 import com.mini_banca.orquestador.cliente.ComunicacionCoreException;
 import com.mini_banca.orquestador.cliente.CoreErrorException;
+import com.mini_banca.orquestador.servicio.LimiteDiarioExcedidoException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,9 +54,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "El servicio interno ha fallado. Inténtalo más tarde.", req);
     }
 
+    // Lección 8: regla de negocio comprobada en el propio orquestador (paso 1 de la saga)
+    @ExceptionHandler(LimiteDiarioExcedidoException.class)
+    ProblemDetail limiteDiario(LimiteDiarioExcedidoException ex, HttpServletRequest req) {
+        return problema(HttpStatusCode.valueOf(422), "Límite diario superado", ex.getMessage(), req);
+    }
+
     @ExceptionHandler(ComunicacionCoreException.class)
     ProblemDetail comunicacion(ComunicacionCoreException ex, HttpServletRequest req) {
         return problema(ex.getStatus(), ex.getTitulo(), ex.getMessage(), req);
+    }
+
+    // Lección 7: si algún día un error de seguridad llega hasta aquí, que NO se convierta en un 500
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ProblemDetail sinPermiso(Exception ex, HttpServletRequest req) {
+        return problema(HttpStatus.FORBIDDEN, "Sin permiso", "No tienes permiso para acceder a este recurso", req);
     }
 
     @ExceptionHandler(Exception.class)

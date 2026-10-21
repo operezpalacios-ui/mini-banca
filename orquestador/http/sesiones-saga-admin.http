@@ -1,0 +1,140 @@
+### Lección 8: sesiones (refresh/logout), saga de transferencia y administración
+# Todo contra el ORQUESTADOR (8081). Ejecuta en orden.
+
+@orq = http://localhost:8081
+
+### ============ SESIONES (RF-1.3) ============
+
+### 1. Login de Ana -> guarda el JWT y el refresh token
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "ana@test.com", "password": "ana-12345" }
+
+> {%
+    client.global.set("token", response.body.accessToken);
+    client.global.set("refresh", response.body.refreshToken);
+    client.global.set("refreshViejo", response.body.refreshToken);
+%}
+
+### 2. REFRESH: canjea el refresh por un JWT nuevo + un refresh NUEVO (el viejo queda gastado)
+POST {{orq}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+> {%
+    client.global.set("token", response.body.accessToken);
+    client.global.set("refresh", response.body.refreshToken);
+%}
+
+### 3. ROBO SIMULADO: alguien usa el refresh VIEJO (ya gastado) -> 401
+###    y además el core cierra TODAS las sesiones de Ana por seguridad (mira la auditoría luego)
+POST {{orq}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refreshViejo}}" }
+
+### 4. Ahora incluso el refresh "bueno" de Ana está revocado -> 401. Tiene que volver a hacer login.
+POST {{orq}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+### 5. Login otra vez
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "ana@test.com", "password": "ana-12345" }
+
+> {%
+    client.global.set("token", response.body.accessToken);
+    client.global.set("refresh", response.body.refreshToken);
+%}
+
+### 6. LOGOUT -> 204
+POST {{orq}}/api/v1/auth/logout
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+### 7. Refresh después del logout -> 401
+POST {{orq}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+### 8. Pero el JWT sigue valiendo hasta que caduque (máx. 15 min): un JWT NO se puede anular.
+###    Por eso dura tan poco.
+GET {{orq}}/api/v1/auth/yo
+Authorization: Bearer {{token}}
+
+### ============ SAGA DE TRANSFERENCIA (RF-0.5) ============
+
+### 9. Transferencia normal: core + auditoría + notificación (mira el 📧 en la consola del orquestador)
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{ "cuentaOrigenId": 1, "ibanDestino": "ES9873877867659746200015", "importe": 2.00, "concepto": "Saga OK" }
+
+### 10. La NOTIFICACIÓN falla -> la transferencia SIGUE siendo 201 (el dinero se movió bien)
+###     En la consola: "Notificación ... fallida". En la auditoría: NOTIFICACION_FALLIDA
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Idempotency-Key: {{$random.uuid}}
+X-Simular-Fallo-Notificacion: true
+Content-Type: application/json
+
+{ "cuentaOrigenId": 1, "ibanDestino": "ES9873877867659746200015", "importe": 3.00, "concepto": "Notificación rota" }
+
+### 11. LÍMITE DIARIO (1000 €): una transferencia enorme -> 422 "Límite diario superado"
+###     (el core ni se entera: lo para el orquestador en el paso 1)
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{ "cuentaOrigenId": 1, "ibanDestino": "ES9873877867659746200015", "importe": 999.00 }
+
+### ============ ADMINISTRACIÓN (RF-6) ============
+
+### 12. Login del ADMIN
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "admin@test.com", "password": "admin-12345" }
+
+> {%
+    client.global.set("tokenAdmin", response.body.accessToken);
+%}
+
+### 13. Auditoría de Ana (usuario 1): verás LOGIN_OK, REFRESH_REUTILIZADO, LOGOUT, TRANSFERENCIA, NOTIFICACION_FALLIDA...
+GET {{orq}}/api/admin/auditoria?usuarioId=1&size=15
+Authorization: Bearer {{tokenAdmin}}
+
+### 14. Solo un tipo de acción
+GET {{orq}}/api/admin/auditoria?accion=LOGIN_FALLIDO&size=10
+Authorization: Bearer {{tokenAdmin}}
+
+### 15. BLOQUEAR a Luis (usuario 2)
+PUT {{orq}}/api/admin/usuarios/2/bloqueo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "bloqueado": true }
+
+### 16. Luis intenta entrar (con la contraseña BUENA) -> 401 "Cuenta desactivada"
+###     (si sigue el bloqueo de 15 min de la lección 7, verás antes ese; espera o desbloquéalo)
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "luis@test.com", "password": "luis-12345" }
+
+### 17. DESBLOQUEAR a Luis
+PUT {{orq}}/api/admin/usuarios/2/bloqueo
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "bloqueado": false }

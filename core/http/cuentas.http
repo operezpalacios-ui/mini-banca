@@ -1,4 +1,5 @@
 ### Peticiones de prueba del core (lección 2)
+# Lección 8: el core exige X-Internal-Key. Ejecuta scripts/generar-http-env.ps1 y elige el entorno "dev".
 # Pulsa el ▶ verde que aparece a la izquierda de cada petición para ejecutarla.
 # La respuesta se abre en un panel abajo/derecha.
 
@@ -8,6 +9,7 @@
 
 ### 1. Crear cuenta para Ana
 POST {{base}}/internal/v1/cuentas
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Content-Type: application/json
 
@@ -18,18 +20,22 @@ Content-Type: application/json
 
 ### 2. Listar cuentas de Ana (paginado)
 GET {{base}}/internal/v1/cuentas?page=0&size=5&sort=alias
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 3. Detalle de la cuenta 1
 GET {{base}}/internal/v1/cuentas/1
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 
 ### 4. ATAQUE: Luis intenta ver la cuenta de Ana -> 404
 GET {{base}}/internal/v1/cuentas/1
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{luis}}
 
 ### 5. Divisa inválida -> 400
 POST {{base}}/internal/v1/cuentas
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Content-Type: application/json
 
@@ -39,6 +45,7 @@ Content-Type: application/json
 
 ### 6. ATAQUE: intentar regalarse saldo -> se crea con saldo 0
 POST {{base}}/internal/v1/cuentas
+X-Internal-Key: {{internalKey}}
 X-User-Id: {{ana}}
 Content-Type: application/json
 
@@ -49,6 +56,7 @@ Content-Type: application/json
 
 ### 7. Sin cabecera X-User-Id -> 400
 GET {{base}}/internal/v1/cuentas
+X-Internal-Key: {{internalKey}}
 
 ### 8. Health check
 GET {{base}}/actuator/health
