@@ -1,0 +1,54 @@
+### Peticiones de prueba del core (lección 2)
+# Pulsa el ▶ verde que aparece a la izquierda de cada petición para ejecutarla.
+# La respuesta se abre en un panel abajo/derecha.
+
+@base = http://localhost:8080
+@ana = 1
+@luis = 2
+
+### 1. Crear cuenta para Ana
+POST {{base}}/internal/v1/cuentas
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "alias": "Nomina",
+  "divisa": "EUR"
+}
+
+### 2. Listar cuentas de Ana (paginado)
+GET {{base}}/internal/v1/cuentas?page=0&size=5&sort=alias
+X-User-Id: {{ana}}
+
+### 3. Detalle de la cuenta 1
+GET {{base}}/internal/v1/cuentas/1
+X-User-Id: {{ana}}
+
+### 4. ATAQUE: Luis intenta ver la cuenta de Ana -> 404
+GET {{base}}/internal/v1/cuentas/1
+X-User-Id: {{luis}}
+
+### 5. Divisa inválida -> 400
+POST {{base}}/internal/v1/cuentas
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "divisa": "euros"
+}
+
+### 6. ATAQUE: intentar regalarse saldo -> se crea con saldo 0
+POST {{base}}/internal/v1/cuentas
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "divisa": "EUR",
+  "saldo": 1000000
+}
+
+### 7. Sin cabecera X-User-Id -> 400
+GET {{base}}/internal/v1/cuentas
+
+### 8. Health check
+GET {{base}}/actuator/health
