@@ -107,3 +107,15 @@ Content-Type: application/json
 ### 11. Ver el saldo de la cuenta 6
 GET {{base}}/internal/v1/cuentas/6
 X-User-Id: {{ana}}
+
+### 12. Recargar la cuenta 6 con 100 € desde la cuenta 7
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 7,
+  "ibanDestino": "ES0000000000000000000001",
+  "importe": 100.00,
+  "concepto": "Recargar para la prueba"
+}
