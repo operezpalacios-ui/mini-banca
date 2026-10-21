@@ -1,0 +1,109 @@
+### Lección 4: transferencias
+
+@base = http://localhost:8080
+@ana = 1
+
+### 1. Transferencia normal: 50 € de la cuenta 1 (Nomina) a la cuenta 2 (Ahorro)
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 50.00,
+  "concepto": "Para la hucha"
+}
+
+### 2. Ver los movimientos de la cuenta 1: arriba debe salir el CARGO de la transferencia
+GET {{base}}/internal/v1/cuentas/1/movimientos?size=3
+X-User-Id: {{ana}}
+
+### 3. Saldo insuficiente -> 422
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 999999.00
+}
+
+### 4. Misma cuenta origen y destino -> 422
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES1327688925381946067237",
+  "importe": 10.00
+}
+
+### 5. Importe con 3 decimales -> 400 (lo para la validación, no llega al servicio)
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 10.123
+}
+
+### 6. Importe negativo -> 400
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": -5
+}
+
+### 7. ATAQUE: Luis intenta sacar dinero de la cuenta de Ana -> 404
+POST {{base}}/internal/v1/transferencias
+X-User-Id: 2
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 10.00
+}
+
+### 8. ROLLBACK: fallo simulado DESPUÉS del débito -> 500
+### Mira el saldo de la cuenta 1 antes (petición 9) y después: NO debe cambiar.
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+X-Simular-Fallo: true
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 10.00
+}
+
+### 9. Ver el saldo de la cuenta 1
+GET {{base}}/internal/v1/cuentas/1
+X-User-Id: {{ana}}
+
+### 10. PREPARAR la prueba de concurrencia: dejar la cuenta 6 ("Extra 1") con 100 € exactos
+### (tenía 874,14 €; pasamos 774,14 € a la cuenta 7). Ejecútala UNA sola vez.
+POST {{base}}/internal/v1/transferencias
+X-User-Id: {{ana}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 6,
+  "ibanDestino": "ES0000000000000000000002",
+  "importe": 774.14,
+  "concepto": "Preparar prueba de concurrencia"
+}
+
+### 11. Ver el saldo de la cuenta 6
+GET {{base}}/internal/v1/cuentas/6
+X-User-Id: {{ana}}

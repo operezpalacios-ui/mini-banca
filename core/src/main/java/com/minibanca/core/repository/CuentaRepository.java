@@ -1,10 +1,12 @@
 package com.minibanca.core.repository;
 
 import com.minibanca.core.domain.Cuenta;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -42,4 +44,18 @@ public interface CuentaRepository extends JpaRepository<Cuenta, Long> {
 
     // Alternativa equivalente con JPQL puro (JOIN FETCH):
     // @Query("select c from Cuenta c left join fetch c.movimientos where c.usuario.id = :usuarioId order by c.id")
+
+    // --- Lección 4: transferencias ---
+
+    // Solo el id (no la entidad entera): así no "contaminamos" la sesión de Hibernate
+    // con una copia sin bloquear antes de pedirla con bloqueo.
+    @Query("select c.id from Cuenta c where c.iban = :iban")
+    Optional<Long> findIdByIban(@Param("iban") String iban);
+
+    // BLOQUEO PESIMISTA: genera  SELECT ... FOR UPDATE
+    // La fila queda "reservada" hasta que termine la transacción: si otra petición
+    // intenta leerla con FOR UPDATE, ESPERA en la cola hasta que la primera acabe.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Cuenta c where c.id = :id")
+    Optional<Cuenta> findByIdForUpdate(@Param("id") Long id);
 }

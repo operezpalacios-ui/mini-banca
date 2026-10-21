@@ -68,4 +68,23 @@ public class Cuenta {
     public Long getVersion() { return version; }
     public Instant getCreadoEn() { return creadoEn; }
     public List<Movimiento> getMovimientos() { return movimientos; }
+
+    // --- Lección 4: comportamiento de dominio ---
+    // Las reglas que protegen el saldo viven AQUÍ, dentro de la entidad: nadie puede
+    // dejar una cuenta en negativo "por despiste" desde otra clase.
+
+    public boolean isActiva() {
+        return estado == EstadoCuenta.ACTIVA;
+    }
+
+    public void debitar(BigDecimal importe) {
+        if (saldo.compareTo(importe) < 0) {
+            throw new IllegalStateException("Saldo insuficiente en la cuenta " + iban);
+        }
+        this.saldo = this.saldo.subtract(importe);
+    }
+
+    public void acreditar(BigDecimal importe) {
+        this.saldo = this.saldo.add(importe);
+    }
 }
