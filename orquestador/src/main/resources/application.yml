@@ -1,0 +1,22 @@
+server:
+  port: 8081          # el core usa el 8080; el orquestador, el 8081
+
+spring:
+  application:
+    name: orquestador
+
+# Dónde está el core y cuánto estamos dispuestos a esperarle (RF-0.4)
+core:
+  url: ${CORE_URL:http://localhost:8080}
+  connect-timeout: 2s   # si en 2 s no consigo ni conectar, el core está caído
+  read-timeout: 5s      # si conecta pero tarda más de 5 s en responder, dejo de esperar
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"

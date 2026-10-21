@@ -1,0 +1,66 @@
+### Lección 6: probar el ORQUESTADOR (puerto 8081), que a su vez llama al core (8080)
+# Necesitas los DOS arrancados: CoreApplication y OrquestadorApplication.
+
+@orq = http://localhost:8081
+@ana = 1
+
+### 1. Listar cuentas A TRAVÉS del orquestador (fíjate: /api/v1, no /internal/v1)
+GET {{orq}}/api/v1/cuentas?size=3
+X-User-Id: {{ana}}
+
+### 2. Detalle de una cuenta
+GET {{orq}}/api/v1/cuentas/1
+X-User-Id: {{ana}}
+
+### 3. Movimientos
+GET {{orq}}/api/v1/cuentas/1/movimientos?size=3
+X-User-Id: {{ana}}
+
+### 4. Transferencia a través del orquestador
+POST {{orq}}/api/v1/transferencias
+X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 1.00,
+  "concepto": "Vía orquestador"
+}
+
+### 5. Error de NEGOCIO que viene del core (422): el orquestador lo reenvía tal cual
+POST {{orq}}/api/v1/transferencias
+X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{
+  "cuentaOrigenId": 1,
+  "ibanDestino": "ES9873877867659746200015",
+  "importe": 999999.00
+}
+
+### 6. Error de VALIDACIÓN que para el propio orquestador (400): el core ni se entera
+POST {{orq}}/api/v1/transferencias
+X-User-Id: {{ana}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{
+  "ibanDestino": "FR123",
+  "importe": -1
+}
+
+### 7. Cuenta ajena (404 que viene del core). Fíjate en "instance": es la ruta PÚBLICA, no la interna
+GET {{orq}}/api/v1/cuentas/1
+X-User-Id: 2
+
+### ------------------------------------------------------------------
+### 8. RESILIENCIA: PARA el core (■ en IntelliJ) y lanza esta petición varias veces.
+###    - Las primeras: 503 "El servicio interno no está disponible" (tardan un poco: intenta conectar)
+###    - A partir de la 5ª: en la consola del orquestador sale "CIRCUIT BREAKER 'core': CLOSED_TO_OPEN"
+###      y las respuestas pasan a ser 503 INSTANTÁNEAS (ni lo intenta: el diferencial ha saltado)
+###    - Arranca el core, espera 15 s y vuelve a lanzarla: OPEN_TO_HALF_OPEN -> HALF_OPEN_TO_CLOSED
+GET {{orq}}/api/v1/cuentas/1
+X-User-Id: {{ana}}
