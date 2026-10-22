@@ -1,6 +1,7 @@
 package com.minibanca.core.repository;
 
 import com.minibanca.core.domain.Cuenta;
+import com.minibanca.core.domain.EstadoCuenta;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,4 +60,35 @@ public interface CuentaRepository extends JpaRepository<Cuenta, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from Cuenta c where c.id = :id")
     Optional<Cuenta> findByIdForUpdate(@Param("id") Long id);
+
+    // --- Lección 9 (RF-7.6): PROYECCIONES y CONSULTAS NATIVAS ---
+
+    /**
+     * PROYECCIÓN: en vez de la entidad Cuenta entera, solo las 4 columnas de CuentaLigera.
+     * Spring Data ve que devuelves una interfaz y genera  SELECT id, iban, alias, saldo ...
+     * (más ligero, y sin riesgo de cargar relaciones LAZY). Ideal para un desplegable en Angular.
+     * Ojo al nombre: entre "find" y "By" puedes escribir lo que quieras ("Ligeras") para no
+     * chocar con findByUsuarioIdOrderById, que ya existe y devuelve entidades.
+     */
+    List<CuentaLigera> findLigerasByUsuarioIdAndEstadoOrderByIdAsc(Long usuarioId, EstadoCuenta estado);
+
+    /**
+     * CONSULTA NATIVA: SQL de PostgreSQL tal cual (nativeQuery = true), no JPQL.
+     * La usamos porque date_trunc, AT TIME ZONE y FILTER no existen en JPQL.
+     * El resultado se mapea a la proyección ResumenMensual por el NOMBRE de cada columna
+     * (por eso "numMovimientos" va entre comillas: si no, Postgres lo pasaría a minúsculas).
+     * Precio a pagar: este SQL solo funciona en PostgreSQL y el compilador no lo revisa.
+     */
+    @Query(value = """
+            SELECT to_char(date_trunc('month', m.fecha AT TIME ZONE 'Europe/Madrid'), 'YYYY-MM') AS mes,
+                   COALESCE(SUM(m.importe) FILTER (WHERE m.tipo = 'ABONO'), 0)                   AS ingresos,
+                   COALESCE(SUM(m.importe) FILTER (WHERE m.tipo = 'CARGO'), 0)                   AS gastos,
+                   COUNT(*)                                                                       AS "numMovimientos"
+            FROM movimiento m
+            WHERE m.cuenta_id = :cuentaId
+              AND m.fecha >= :desde
+            GROUP BY 1
+            ORDER BY 1 DESC
+            """, nativeQuery = true)
+    List<ResumenMensual> resumenMensual(@Param("cuentaId") Long cuentaId, @Param("desde") Instant desde);
 }

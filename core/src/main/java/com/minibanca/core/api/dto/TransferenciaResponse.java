@@ -1,5 +1,6 @@
 package com.minibanca.core.api.dto;
 
+import com.minibanca.core.domain.EstadoTransferencia;
 import com.minibanca.core.domain.Transferencia;
 
 import java.math.BigDecimal;
@@ -16,7 +17,11 @@ public record TransferenciaResponse(
         String ibanDestino,
         BigDecimal importe,
         String concepto,
-        Instant fecha
+        Instant fecha,
+        // Lección 9 (RF-3.6)
+        EstadoTransferencia estado,
+        Instant anuladaEn,
+        String motivoAnulacion
 ) {
     public static TransferenciaResponse from(Transferencia t) {
         return new TransferenciaResponse(
@@ -26,6 +31,9 @@ public record TransferenciaResponse(
                 t.getCuentaDestino().getIban(),
                 t.getImporte(),
                 t.getConcepto(),
-                t.getFecha());
+                t.getFecha(),
+                t.getEstado(),
+                t.getAnuladaEn(),
+                t.getMotivoAnulacion());
     }
 }

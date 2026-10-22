@@ -4,15 +4,22 @@ import com.minibanca.core.api.dto.CrearTransferenciaRequest;
 import com.minibanca.core.api.dto.TransferenciaResponse;
 import com.minibanca.core.domain.AccionAuditoria;
 import com.minibanca.core.domain.Cuenta;
+import com.minibanca.core.domain.EstadoTransferencia;
 import com.minibanca.core.domain.Movimiento;
 import com.minibanca.core.domain.TipoMovimiento;
 import com.minibanca.core.domain.Transferencia;
 import com.minibanca.core.error.ConflictoException;
 import com.minibanca.core.error.RecursoNoEncontradoException;
 import com.minibanca.core.error.ReglaNegocioException;
+import com.minibanca.core.error.SaldoInsuficienteException;
+import com.minibanca.core.repository.CuentasDeTransferencia;
 import com.minibanca.core.repository.CuentaRepository;
 import com.minibanca.core.repository.MovimientoRepository;
 import com.minibanca.core.repository.TransferenciaRepository;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +27,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -29,15 +38,18 @@ public class TransferenciaService {
     private final MovimientoRepository movimientoRepository;
     private final TransferenciaRepository transferenciaRepository;
     private final AuditoriaService auditoria;
+    private final CacheCuentas cache;
 
     public TransferenciaService(CuentaRepository cuentaRepository,
                                 MovimientoRepository movimientoRepository,
                                 TransferenciaRepository transferenciaRepository,
-                                AuditoriaService auditoria) {
+                                AuditoriaService auditoria,
+                                CacheCuentas cache) {
         this.cuentaRepository = cuentaRepository;
         this.movimientoRepository = movimientoRepository;
         this.transferenciaRepository = transferenciaRepository;
         this.auditoria = auditoria;
+        this.cache = cache;
     }
 
     /**
@@ -110,6 +122,9 @@ public class TransferenciaService {
         Transferencia transferencia = transferenciaRepository.save(
                 new Transferencia(origen, destino, request.importe(), request.concepto(), idempotencyKey));
 
+        // Lección 11: han cambiado los saldos de DOS usuarios (el que envía y el que recibe)
+        cache.olvidarTrasCommit(origen.getUsuario().getId(), destino.getUsuario().getId());
+
         return new ResultadoTransferencia(TransferenciaResponse.from(transferencia), false);
     }
 
@@ -120,6 +135,77 @@ public class TransferenciaService {
                 .atStartOfDay(ZoneId.of("Europe/Madrid")).toInstant();
         BigDecimal total = transferenciaRepository.totalTransferidoDesde(usuarioId, inicioDelDia);
         return total != null ? total : BigDecimal.ZERO;
+    }
+
+    // ===================== Lección 9 =====================
+
+    /**
+     * RF-3.6: un ADMIN anula una transferencia. En un banco NO se borra nada: se hace la
+     * operación CONTRARIA (el destino devuelve el dinero al origen) con sus propios movimientos,
+     * y la transferencia queda marcada como ANULADA. Así el histórico cuenta la verdad completa.
+     *
+     * Mismo patrón que transferir(): una transacción, cerrojos en orden de id, reglas -> 422.
+     */
+    @Transactional
+    public TransferenciaResponse anular(Long adminId, Long transferenciaId, String motivo) {
+        CuentasDeTransferencia ids = transferenciaRepository.findCuentasById(transferenciaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Transferencia no encontrada"));
+
+        // 1. Cerrojo sobre las dos cuentas, en orden de id (igual que al transferir -> sin deadlocks)
+        Long primeroId = Math.min(ids.origenId(), ids.destinoId());
+        Long segundoId = Math.max(ids.origenId(), ids.destinoId());
+        Cuenta primera = cargar(primeroId, ModoBloqueo.PESIMISTA);
+        Cuenta segunda = cargar(segundoId, ModoBloqueo.PESIMISTA);
+        Cuenta origen = primera.getId().equals(ids.origenId()) ? primera : segunda;
+        Cuenta destino = (origen == primera) ? segunda : primera;
+
+        // 2. Ahora sí, la transferencia (también con cerrojo). Si dos admins anulan a la vez,
+        //    el segundo espera y aquí ya ve estado = ANULADA -> 409.
+        Transferencia t = transferenciaRepository.findByIdForUpdate(transferenciaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Transferencia no encontrada"));
+        t.marcarAnulada(adminId, motivo);
+
+        // 3. Reglas de negocio
+        if (!origen.isActiva()) {
+            throw new ReglaNegocioException("No se puede anular: la cuenta origen " + origen.getIban()
+                    + " está cerrada y no puede recibir la devolución");
+        }
+        try {
+            destino.debitar(t.getImporte());
+        } catch (SaldoInsuficienteException e) {
+            throw new ReglaNegocioException("No se puede anular: la cuenta destino " + destino.getIban()
+                    + " ya no tiene saldo suficiente para devolver " + t.getImporte());
+        }
+
+        // 4. Devolver el dinero, dejando rastro en los dos históricos
+        movimientoRepository.save(new Movimiento(destino, TipoMovimiento.CARGO, t.getImporte(),
+                "Anulación de la transferencia " + t.getId()));
+        origen.acreditar(t.getImporte());
+        movimientoRepository.save(new Movimiento(origen, TipoMovimiento.ABONO, t.getImporte(),
+                "Devolución de la transferencia " + t.getId()));
+
+        cache.olvidarTrasCommit(origen.getUsuario().getId(), destino.getUsuario().getId());
+        auditoria.registrar(adminId, AccionAuditoria.TRANSFERENCIA_ANULADA,
+                "Transferencia " + t.getId() + " (" + t.getImporte() + " de " + origen.getIban()
+                        + " a " + destino.getIban() + ") anulada. Motivo: " + motivo);
+
+        return TransferenciaResponse.from(t);
+    }
+
+    /**
+     * Listado paginado de transferencias ENVIADAS.
+     *  - usuarioId != null -> solo las de ese usuario (lo usa "mis transferencias" y el filtro del admin)
+     *  - usuarioId == null -> todas (solo admin; el orquestador garantiza que solo llega un ADMIN)
+     */
+    @Transactional(readOnly = true)
+    public Page<TransferenciaResponse> buscar(Long usuarioId, EstadoTransferencia estado, Pageable pageable) {
+        Specification<Transferencia> filtros = (root, query, cb) -> {
+            List<Predicate> c = new ArrayList<>();
+            if (usuarioId != null) c.add(cb.equal(root.get("cuentaOrigen").get("usuario").get("id"), usuarioId));
+            if (estado != null) c.add(cb.equal(root.get("estado"), estado));
+            return cb.and(c.toArray(new Predicate[0]));
+        };
+        return transferenciaRepository.findAll(filtros, pageable).map(TransferenciaResponse::from);
     }
 
     private boolean esLaMismaOperacion(Transferencia t, CrearTransferenciaRequest r) {

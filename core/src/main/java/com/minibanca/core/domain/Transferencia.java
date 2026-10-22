@@ -1,5 +1,6 @@
 package com.minibanca.core.domain;
 
+import com.minibanca.core.error.ConflictoException;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -33,6 +34,20 @@ public class Transferencia {
     @Column(name = "idempotency_key", unique = true)
     private String idempotencyKey;
 
+    // Lección 9 (RF-3.6): anulación por un administrador
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private EstadoTransferencia estado = EstadoTransferencia.COMPLETADA;
+
+    @Column(name = "anulada_en")
+    private Instant anuladaEn;
+
+    @Column(name = "anulada_por")
+    private Long anuladaPor;          // id del admin (solo el id: no necesitamos cargar el Usuario)
+
+    @Column(name = "motivo_anulacion")
+    private String motivoAnulacion;
+
     protected Transferencia() {
     }
 
@@ -52,4 +67,20 @@ public class Transferencia {
     public String getConcepto() { return concepto; }
     public Instant getFecha() { return fecha; }
     public String getIdempotencyKey() { return idempotencyKey; }
+    public EstadoTransferencia getEstado() { return estado; }
+    public Instant getAnuladaEn() { return anuladaEn; }
+    public Long getAnuladaPor() { return anuladaPor; }
+    public String getMotivoAnulacion() { return motivoAnulacion; }
+
+    /** Solo cambia el ESTADO. Devolver el dinero lo hace el servicio (necesita las dos cuentas bloqueadas). */
+    public void marcarAnulada(Long adminId, String motivo) {
+        if (estado == EstadoTransferencia.ANULADA) {
+            // 409: no es un dato incorrecto, es que choca con el estado actual
+            throw new ConflictoException("La transferencia " + id + " ya estaba anulada");
+        }
+        this.estado = EstadoTransferencia.ANULADA;
+        this.anuladaEn = Instant.now();
+        this.anuladaPor = adminId;
+        this.motivoAnulacion = motivo;
+    }
 }

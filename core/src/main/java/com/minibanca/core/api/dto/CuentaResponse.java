@@ -17,10 +17,11 @@ public record CuentaResponse(
         String divisa,
         BigDecimal saldo,
         EstadoCuenta estado,
-        Instant creadoEn
+        Instant creadoEn,
+        Instant cerradaEn          // lección 9: null si está abierta
 ) {
     public static CuentaResponse from(Cuenta c) {
         return new CuentaResponse(c.getId(), c.getIban(), c.getAlias(), c.getDivisa(),
-                c.getSaldo(), c.getEstado(), c.getCreadoEn());
+                c.getSaldo(), c.getEstado(), c.getCreadoEn(), c.getCerradaEn());
     }
 }

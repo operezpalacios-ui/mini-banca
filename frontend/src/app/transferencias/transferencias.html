@@ -1,0 +1,116 @@
+<section class="tarjeta">
+  <h1>Nueva transferencia</h1>
+
+  <form class="formulario" [formGroup]="form" (ngSubmit)="enviar()">
+    <label>
+      Desde la cuenta
+      <!-- [ngValue] guarda el número (no el texto) en el formulario -->
+      <select formControlName="cuentaOrigenId">
+        <option [ngValue]="null" disabled>Elige una cuenta…</option>
+        @for (c of origenes(); track c.id) {
+          <option [ngValue]="c.id">{{ c.alias || 'Cuenta' }} · {{ c.iban }} · {{ c.saldo | currency: 'EUR' }}</option>
+        }
+      </select>
+    </label>
+    @if (form.controls.cuentaOrigenId.touched && form.controls.cuentaOrigenId.invalid) {
+      <small class="error">Elige la cuenta de origen</small>
+    }
+
+    <label>
+      IBAN de destino
+      <input formControlName="ibanDestino" placeholder="ES00 0000 0000 0000 0000 0000" autocomplete="off" />
+    </label>
+    @if (form.controls.ibanDestino.touched && form.controls.ibanDestino.invalid) {
+      <small class="error">Debe ser un IBAN español: ES + 22 dígitos</small>
+    }
+
+    <label>
+      Importe (€)
+      <input type="number" min="0.01" step="0.01" formControlName="importe" />
+    </label>
+    @if (form.controls.importe.touched && form.controls.importe.errors; as err) {
+      <small class="error">{{ err['importe'] || 'El importe es obligatorio' }}</small>
+    }
+
+    <label>
+      Concepto (opcional)
+      <input formControlName="concepto" maxlength="140" />
+    </label>
+
+    @if (error(); as e) {
+      <p class="error">
+        {{ e.mensaje }}
+        @if (e.traceId) {
+          <br /><small>Código para soporte: {{ e.traceId }}</small>
+        }
+      </p>
+    }
+
+    @if (hecha(); as h) {
+      <p class="ok">
+        @if (h.repetida) {
+          Esta transferencia ya estaba hecha (nº {{ h.t.id }}). No se ha vuelto a cobrar.
+        } @else {
+          Transferencia nº {{ h.t.id }} realizada: {{ h.t.importe | currency: 'EUR' }} a {{ h.t.ibanDestino }}.
+        }
+      </p>
+    }
+
+    <button type="submit" [disabled]="enviando()">{{ enviando() ? 'Enviando…' : 'Transferir' }}</button>
+  </form>
+</section>
+
+<section class="tarjeta">
+  <h2>Mis transferencias enviadas</h2>
+  @if (historial(); as p) {
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Destino</th>
+          <th>Concepto</th>
+          <th>Estado</th>
+          <th class="num">Importe</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (t of p.content; track t.id) {
+          <tr [class.anulada]="t.estado === 'ANULADA'">
+            <td>{{ t.fecha | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td class="iban">{{ t.ibanDestino }}</td>
+            <td>{{ t.concepto || '—' }}</td>
+            <td>
+              @if (t.estado === 'ANULADA') {
+                <!-- title = el texto que sale al dejar el ratón encima -->
+                <span class="etiqueta-anulada" [title]="t.motivoAnulacion ?? ''">Anulada</span>
+              } @else {
+                Completada
+              }
+            </td>
+            <td class="num">{{ t.importe | currency: 'EUR' }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="5">Aún no has hecho ninguna transferencia.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    @if (p.page.totalPages > 1) {
+      <nav class="paginacion">
+        <button class="secundario-claro" [disabled]="p.page.number === 0" (click)="cargarHistorial(p.page.number - 1)">
+          ← Anterior
+        </button>
+        <span>Página {{ p.page.number + 1 }} de {{ p.page.totalPages }}</span>
+        <button
+          class="secundario-claro"
+          [disabled]="p.page.number + 1 >= p.page.totalPages"
+          (click)="cargarHistorial(p.page.number + 1)"
+        >
+          Siguiente →
+        </button>
+      </nav>
+    }
+  }
+</section>

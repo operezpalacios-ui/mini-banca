@@ -1,0 +1,70 @@
+<form class="filtros" [formGroup]="filtros" (ngSubmit)="cargar(0)">
+  <label>Id de usuario <input type="number" min="1" formControlName="usuarioId" placeholder="Todos" /></label>
+  <label>
+    Estado
+    <select formControlName="estado">
+      <option value="">Todos</option>
+      <option value="COMPLETADA">Completadas</option>
+      <option value="ANULADA">Anuladas</option>
+    </select>
+  </label>
+  <button type="submit">Buscar</button>
+</form>
+
+@if (aviso(); as a) {
+  <p class="ok">{{ a }}</p>
+}
+@if (error(); as e) {
+  <p class="error">{{ e.mensaje }}</p>
+}
+
+@if (pagina(); as p) {
+  <table>
+    <thead>
+      <tr>
+        <th>Nº</th>
+        <th>Fecha</th>
+        <th>Origen → Destino</th>
+        <th>Concepto</th>
+        <th class="num">Importe</th>
+        <th>Estado</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (t of p.content; track t.id) {
+        <tr [class.anulada]="t.estado === 'ANULADA'">
+          <td>{{ t.id }}</td>
+          <td>{{ t.fecha | date: 'dd/MM/yyyy HH:mm' }}</td>
+          <td class="iban">{{ t.ibanOrigen }}<br />→ {{ t.ibanDestino }}</td>
+          <td>{{ t.concepto || '—' }}</td>
+          <td class="num">{{ t.importe | currency: 'EUR' }}</td>
+          <td>
+            @if (t.estado === 'ANULADA') {
+              <span class="estado-anulada" [title]="t.motivoAnulacion ?? ''">Anulada</span>
+            } @else {
+              Completada
+            }
+          </td>
+          <td>
+            @if (t.estado === 'COMPLETADA') {
+              <button class="peligro" (click)="anular(t)">Anular</button>
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr><td colspan="7">No hay transferencias con estos filtros.</td></tr>
+      }
+    </tbody>
+  </table>
+
+  @if (p.page.totalPages > 1) {
+    <nav class="paginacion">
+      <button class="secundario-claro" [disabled]="p.page.number === 0" (click)="cargar(p.page.number - 1)">← Anterior</button>
+      <span>Página {{ p.page.number + 1 }} de {{ p.page.totalPages }}</span>
+      <button class="secundario-claro" [disabled]="p.page.number + 1 >= p.page.totalPages" (click)="cargar(p.page.number + 1)">
+        Siguiente →
+      </button>
+    </nav>
+  }
+}

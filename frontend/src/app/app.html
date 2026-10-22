@@ -1,0 +1,26 @@
+<header class="cabecera">
+  <a class="marca" routerLink="/">Mini banca</a>
+
+  @if (auth.usuario(); as u) {
+    <!-- routerLinkActive: añade la clase "activo" al enlace de la pantalla en la que estás -->
+    <nav class="menu">
+      <a routerLink="/cuentas" routerLinkActive="activo">Cuentas</a>
+      <a routerLink="/transferencias" routerLinkActive="activo">Transferencias</a>
+      @if (u.rol === 'ADMIN') {
+        <a routerLink="/admin" routerLinkActive="activo">Admin</a>
+      }
+    </nav>
+    <span class="usuario">
+      Hola, {{ u.nombre }}
+      @if (u.rol === 'ADMIN') {
+        <span class="etiqueta">ADMIN</span>
+      }
+    </span>
+    <button class="secundario" (click)="auth.logout()">Salir</button>
+  }
+</header>
+
+<main>
+  <!-- Aquí el router "enchufa" la pantalla que toque según la URL (/login, /cuentas...) -->
+  <router-outlet />
+</main>

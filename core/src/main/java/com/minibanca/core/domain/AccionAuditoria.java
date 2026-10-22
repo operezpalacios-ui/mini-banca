@@ -10,5 +10,7 @@ public enum AccionAuditoria {
     TRANSFERENCIA_FALLIDA,
     NOTIFICACION_FALLIDA,
     BLOQUEO_USUARIO,
-    DESBLOQUEO_USUARIO
+    DESBLOQUEO_USUARIO,
+    CUENTA_CERRADA,           // lección 9
+    TRANSFERENCIA_ANULADA     // lección 9
 }

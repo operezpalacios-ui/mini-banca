@@ -1,0 +1,42 @@
+<!--
+  [formGroup] conecta el <form> con el formulario de login.ts.
+  (ngSubmit) = "cuando se envíe, llama a entrar()".
+  @if = un "if" dentro del HTML: el bloque solo existe si se cumple la condición.
+-->
+<form class="tarjeta login" [formGroup]="form" (ngSubmit)="entrar()">
+  <h1>Entrar</h1>
+
+  @if (caducada) {
+    <p class="aviso">Tu sesión ha caducado. Vuelve a entrar.</p>
+  }
+
+  <label>
+    Email
+    <input type="email" formControlName="email" autocomplete="username" />
+  </label>
+  @if (form.controls.email.touched && form.controls.email.invalid) {
+    <small class="error">Escribe un email válido</small>
+  }
+
+  <label>
+    Contraseña
+    <input type="password" formControlName="password" autocomplete="current-password" />
+  </label>
+  @if (form.controls.password.touched && form.controls.password.invalid) {
+    <small class="error">La contraseña es obligatoria</small>
+  }
+
+  @if (error(); as e) {
+    <p class="error">
+      {{ e.mensaje }}
+      @if (e.traceId) {
+        <br /><small>Código para soporte: {{ e.traceId }}</small>
+      }
+    </p>
+  }
+
+  <!-- [disabled]: mientras se envía, el botón no se puede pulsar (evita dobles envíos) -->
+  <button type="submit" [disabled]="enviando()">
+    {{ enviando() ? 'Entrando…' : 'Entrar' }}
+  </button>
+</form>

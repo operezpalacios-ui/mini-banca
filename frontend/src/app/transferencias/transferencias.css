@@ -1,0 +1,50 @@
+:host {
+  display: grid;
+  gap: 1.25rem;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 520px;
+}
+
+.formulario label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 500;
+}
+
+.ok {
+  color: var(--exito);
+  font-weight: 600;
+}
+
+.anulada td {
+  color: var(--texto-suave);
+  text-decoration: line-through;
+}
+
+.anulada td:nth-child(4) {
+  text-decoration: none;
+}
+
+.etiqueta-anulada {
+  color: var(--error);
+  font-weight: 600;
+  cursor: help;
+}
+
+.paginacion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+}

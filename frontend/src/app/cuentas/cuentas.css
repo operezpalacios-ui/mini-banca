@@ -1,0 +1,32 @@
+:host {
+  display: grid;
+  gap: 1.25rem;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.fila {
+  cursor: pointer;
+}
+
+.fila:hover {
+  background: var(--fondo);
+}
+
+.cerrada {
+  color: var(--texto-suave);
+}
+
+.fila-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fila-form input {
+  flex: 1;
+  min-width: 200px;
+}

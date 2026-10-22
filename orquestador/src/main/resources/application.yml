@@ -7,12 +7,17 @@ spring:
   config:
     # Lección 7: leemos JWT_SECRET del .env de la raíz (igual que hace el core con la BBDD)
     import: optional:file:../.env[.properties],optional:file:./.env[.properties]
+  mvc:
+    async:
+      # Lección 9: tiempo máximo de una respuesta en streaming (exportación CSV)
+      request-timeout: 2m
 
 # Dónde está el core y cuánto estamos dispuestos a esperarle (RF-0.4)
 core:
   url: ${CORE_URL:http://localhost:8080}
   connect-timeout: 2s   # si en 2 s no consigo ni conectar, el core está caído
   read-timeout: 5s      # si conecta pero tarda más de 5 s en responder, dejo de esperar
+  download-timeout: 2m  # lección 9: las descargas CSV pueden tardar más
   # Lección 8 (RF-0.3): la "contraseña" para hablar con el core. La misma que tiene el core.
   api-key: ${INTERNAL_API_KEY:}
 
@@ -20,11 +25,28 @@ core:
 transferencias:
   limite-diario: 1000.00
 
+# Lección 10: webs que pueden llamar a la API desde el navegador (separadas por comas).
+# En producción: CORS_ORIGINS=https://minibanca.midominio.com
+cors:
+  origenes-permitidos: ${CORS_ORIGINS:http://localhost:4200}
+
 # Lección 7: tokens JWT. La clave SOLO la conoce el orquestador (RF-11).
 jwt:
   secret: ${JWT_SECRET:}       # vacío -> la app NO arranca (mejor fallar pronto que firmar con nada)
   emisor: minibanca
   duracion: 15m                # access token de corta duración (RF-1.2)
+
+# Lección 9 (RF-9.1): Swagger en http://localhost:8081/swagger-ui.html
+# En producción: SWAGGER_ENABLED=false (no regalamos el mapa de la API)
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    persist-authorization: true    # no tener que pegar el token cada vez que recargas
+    operations-sorter: method
+    tags-sorter: alpha
+  paths-to-match: /api/**          # el actuator no se documenta
 
 management:
   endpoints:

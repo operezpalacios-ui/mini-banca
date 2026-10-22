@@ -1,0 +1,121 @@
+/* Estilos GLOBALES: afectan a toda la app. Los de cada componente van en su propio .css */
+
+:root {
+  --primario: #1f4e79;
+  --primario-oscuro: #163a5a;
+  --fondo: #f4f6f9;
+  --borde: #dde3ea;
+  --texto: #1d2733;
+  --texto-suave: #8a96a3;
+  --error: #b42318;
+  --exito: #067647;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+h1 {
+  margin-top: 0;
+  font-size: 1.4rem;
+}
+
+.tarjeta {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font: inherit;
+}
+
+input:focus {
+  outline: 2px solid var(--primario);
+  outline-offset: 1px;
+}
+
+button {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--primario);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--primario-oscuro);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.secundario {
+  background: transparent;
+  border: 1px solid #fff;
+}
+
+.error {
+  color: var(--error);
+}
+
+select {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
+button.secundario-claro {
+  background: #fff;
+  color: var(--primario);
+  border: 1px solid var(--borde);
+}
+
+button.secundario-claro:hover:not(:disabled) {
+  background: var(--fondo);
+}
+
+button.peligro {
+  background: var(--error);
+}
+
+/* Tablas: comunes a varias pantallas */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--borde);
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.iban {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9rem;
+}

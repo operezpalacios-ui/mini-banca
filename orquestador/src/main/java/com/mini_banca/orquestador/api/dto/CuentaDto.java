@@ -12,5 +12,6 @@ import java.time.Instant;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CuentaDto(Long id, String iban, String alias, String divisa,
-                        BigDecimal saldo, String estado, Instant creadoEn) {
+                        BigDecimal saldo, String estado, Instant creadoEn,
+                        Instant cerradaEn) {   // lección 9
 }

@@ -2,7 +2,9 @@ package com.minibanca.core.api;
 
 import com.minibanca.core.api.dto.CrearCuentaRequest;
 import com.minibanca.core.api.dto.CuentaConMovimientosResponse;
+import com.minibanca.core.api.dto.CuentaLigeraResponse;
 import com.minibanca.core.api.dto.CuentaResponse;
+import com.minibanca.core.api.dto.ResumenMensualResponse;
 import com.minibanca.core.service.CuentaService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
@@ -55,5 +57,30 @@ public class CuentaController {
     public CuentaResponse detalle(@RequestHeader("X-User-Id") Long usuarioId,
                                   @PathVariable Long id) {
         return cuentaService.detalle(usuarioId, id);
+    }
+
+    // ---------- Lección 9 ----------
+
+    /**
+     * RF-2.3. POST a una "acción" (/cerrar) en vez de DELETE: la cuenta NO desaparece,
+     * cambia de estado. DELETE daría a entender que la borramos.
+     */
+    @PostMapping("/{id}/cerrar")
+    public CuentaResponse cerrar(@RequestHeader("X-User-Id") Long usuarioId, @PathVariable Long id) {
+        return cuentaService.cerrar(usuarioId, id);
+    }
+
+    /** RF-7.6 (proyección). La ruta fija /ligeras tiene prioridad sobre /{id}. */
+    @GetMapping("/ligeras")
+    public List<CuentaLigeraResponse> ligeras(@RequestHeader("X-User-Id") Long usuarioId) {
+        return cuentaService.ligeras(usuarioId);
+    }
+
+    /** RF-7.6 (consulta nativa): GET /internal/v1/cuentas/1/resumen-mensual?meses=6 */
+    @GetMapping("/{id}/resumen-mensual")
+    public List<ResumenMensualResponse> resumenMensual(@RequestHeader("X-User-Id") Long usuarioId,
+                                                       @PathVariable Long id,
+                                                       @RequestParam(defaultValue = "12") int meses) {
+        return cuentaService.resumenMensual(usuarioId, id, meses);
     }
 }

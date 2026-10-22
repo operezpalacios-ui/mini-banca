@@ -1,0 +1,97 @@
+<a routerLink="/cuentas" class="volver">← Mis cuentas</a>
+
+@if (cuenta(); as c) {
+  <section class="tarjeta cabecera-cuenta">
+    <div>
+      <h1>{{ c.alias || 'Cuenta' }}</h1>
+      <p class="iban">{{ c.iban }}</p>
+      @if (c.estado === 'CERRADA') {
+        <p class="etiqueta-cerrada">Cerrada el {{ c.cerradaEn | date: 'dd/MM/yyyy' }}</p>
+      }
+    </div>
+    <div class="saldo">
+      <small>Saldo</small>
+      <strong>{{ c.saldo | currency: c.divisa }}</strong>
+      @if (c.estado === 'ACTIVA') {
+        <button class="peligro" (click)="cerrarCuenta()">Cerrar cuenta</button>
+      }
+    </div>
+  </section>
+}
+
+<section class="tarjeta">
+  <h2>Movimientos</h2>
+
+  <form class="filtros" [formGroup]="filtros" (ngSubmit)="buscar()">
+    <label>Desde <input type="date" formControlName="desde" /></label>
+    <label>Hasta <input type="date" formControlName="hasta" /></label>
+    <label>
+      Tipo
+      <select formControlName="tipo">
+        <option value="">Todos</option>
+        <option value="CARGO">Cargos</option>
+        <option value="ABONO">Abonos</option>
+      </select>
+    </label>
+    <label>Importe mín. <input type="number" min="0" step="0.01" formControlName="importeMin" /></label>
+    <label>Importe máx. <input type="number" min="0" step="0.01" formControlName="importeMax" /></label>
+    <label class="texto">Concepto <input formControlName="texto" placeholder="Buscar texto…" /></label>
+    <div class="botones">
+      <button type="submit">Buscar</button>
+      <button type="button" class="secundario-claro" (click)="limpiar()">Limpiar</button>
+      <button type="button" class="secundario-claro" (click)="descargarCsv()" [disabled]="descargando()">
+        {{ descargando() ? 'Descargando…' : 'Descargar CSV' }}
+      </button>
+    </div>
+  </form>
+
+  @if (error(); as e) {
+    <p class="error">{{ e.mensaje }}</p>
+  }
+
+  @if (cargando()) {
+    <p>Cargando…</p>
+  } @else if (pagina(); as p) {
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Concepto</th>
+          <th class="num">Importe</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (m of p.content; track m.id) {
+          <tr>
+            <td>{{ m.fecha | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td>{{ m.concepto || '—' }}</td>
+            <!-- Los cargos en rojo y con signo menos; los abonos en verde -->
+            <td class="num" [class.cargo]="m.tipo === 'CARGO'" [class.abono]="m.tipo === 'ABONO'">
+              {{ m.tipo === 'CARGO' ? '−' : '+' }}{{ m.importe | currency: (cuenta()?.divisa ?? 'EUR') }}
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="3">No hay movimientos con estos filtros.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    @if (p.page.totalPages > 1) {
+      <nav class="paginacion">
+        <button class="secundario-claro" [disabled]="p.page.number === 0" (click)="irAPagina(p.page.number - 1)">
+          ← Anterior
+        </button>
+        <span>Página {{ p.page.number + 1 }} de {{ p.page.totalPages }} ({{ p.page.totalElements }} movimientos)</span>
+        <button
+          class="secundario-claro"
+          [disabled]="p.page.number + 1 >= p.page.totalPages"
+          (click)="irAPagina(p.page.number + 1)"
+        >
+          Siguiente →
+        </button>
+      </nav>
+    }
+  }
+</section>

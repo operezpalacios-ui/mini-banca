@@ -1,0 +1,189 @@
+### Lección 9: completar el backend
+# Todo contra el ORQUESTADOR (8081). Arranca core y orquestador y ejecuta EN ORDEN.
+
+@orq = http://localhost:8081
+@ibanDestino = ES9873877867659746200015
+
+### 1. Login de Ana
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "ana@test.com", "password": "ana-12345" }
+
+> {% client.global.set("token", response.body.accessToken); %}
+
+### 2. Login del ADMIN
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "admin@test.com", "password": "admin-12345" }
+
+> {% client.global.set("tokenAdmin", response.body.accessToken); %}
+
+
+### ============ PROYECCIÓN y CONSULTA NATIVA (RF-7.6) ============
+
+### 3. Cuentas "ligeras": solo id, iban, alias, saldo (mira en la consola del CORE el SELECT: solo 4 columnas)
+GET {{orq}}/api/v1/cuentas/ligeras
+Authorization: Bearer {{token}}
+
+### 4. Resumen por meses con SQL nativo de Postgres (date_trunc + FILTER)
+GET {{orq}}/api/v1/cuentas/1/resumen-mensual?meses=6
+Authorization: Bearer {{token}}
+
+
+### ============ FILTROS DEL HISTÓRICO (RF-4.2) ============
+
+### 5. Solo CARGOS (dinero que sale)
+GET {{orq}}/api/v1/cuentas/1/movimientos?tipo=CARGO&size=5
+Authorization: Bearer {{token}}
+
+### 6. Texto + importe mínimo (no distingue mayúsculas: "TRANSFERENCIA" = "transferencia")
+GET {{orq}}/api/v1/cuentas/1/movimientos?texto=TRANSFERENCIA&importeMin=2&size=5
+Authorization: Bearer {{token}}
+
+### 7. Por fechas. Cambia los días por los de hoy si quieres ver resultados.
+GET {{orq}}/api/v1/cuentas/1/movimientos?desde=2026-10-01&hasta=2026-10-31&size=5
+Authorization: Bearer {{token}}
+
+### 8. ERROR: desde > hasta -> 422
+GET {{orq}}/api/v1/cuentas/1/movimientos?desde=2026-10-31&hasta=2026-10-01
+Authorization: Bearer {{token}}
+
+### 9. ERROR: tipo que no existe -> 400 (lo detecta el core al convertir el parámetro)
+GET {{orq}}/api/v1/cuentas/1/movimientos?tipo=COSA
+Authorization: Bearer {{token}}
+
+
+### ============ EXPORTAR A CSV (RF-4.3) ============
+
+### 10. Descarga el CSV y lo GUARDA junto a este fichero (movimientos.csv). Ábrelo con Excel.
+GET {{orq}}/api/v1/cuentas/1/movimientos/export
+Authorization: Bearer {{token}}
+
+>>! movimientos.csv
+
+### 11. CSV con filtro (solo abonos)
+GET {{orq}}/api/v1/cuentas/1/movimientos/export?tipo=ABONO
+Authorization: Bearer {{token}}
+
+### 12. ERROR: cuenta de otro / inexistente -> 404 en JSON normal (aún no había empezado la descarga)
+GET {{orq}}/api/v1/cuentas/999/movimientos/export
+Authorization: Bearer {{token}}
+
+
+### ============ ANULACIÓN POR UN ADMIN (RF-3.6) ============
+
+### 13. Ana transfiere 5 € (guardamos el id)
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{$random.uuid}}
+
+{ "cuentaOrigenId": 1, "ibanDestino": "{{ibanDestino}}", "importe": 5.00, "concepto": "Para anular" }
+
+> {% client.global.set("transferenciaId", response.body.id); %}
+
+### 14. Ana intenta anularla ella misma -> 403 (solo ADMIN)
+POST {{orq}}/api/admin/transferencias/{{transferenciaId}}/anulacion
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "motivo": "Me he arrepentido" }
+
+### 15. Admin sin motivo válido -> 400
+POST {{orq}}/api/admin/transferencias/{{transferenciaId}}/anulacion
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "motivo": "x" }
+
+### 16. Admin la ANULA -> 200, estado ANULADA. Los 5 € vuelven a la cuenta 1.
+POST {{orq}}/api/admin/transferencias/{{transferenciaId}}/anulacion
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "motivo": "Cargo duplicado reclamado por la clienta" }
+
+### 17. Otra vez -> 409 (ya estaba anulada)
+POST {{orq}}/api/admin/transferencias/{{transferenciaId}}/anulacion
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "motivo": "Cargo duplicado reclamado por la clienta" }
+
+### 18. Movimientos de la cuenta 1: arriba verás "Devolución de la transferencia N" (ABONO)
+GET {{orq}}/api/v1/cuentas/1/movimientos?size=3
+Authorization: Bearer {{token}}
+
+### 19. Mis transferencias anuladas
+GET {{orq}}/api/v1/transferencias?estado=ANULADA
+Authorization: Bearer {{token}}
+
+### 20. Admin: transferencias de cualquier usuario (aquí, las de Ana)
+GET {{orq}}/api/admin/transferencias?usuarioId=1&size=5
+Authorization: Bearer {{tokenAdmin}}
+
+
+### ============ CERRAR CUENTA (RF-2.3) ============
+
+### 21. Ana abre una cuenta nueva (saldo 0)
+POST {{orq}}/api/v1/cuentas
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "alias": "Para cerrar", "divisa": "EUR" }
+
+> {%
+    client.global.set("cuentaNueva", response.body.id);
+    client.global.set("ibanNueva", response.body.iban);
+%}
+
+### 22. La cierra -> 200, estado CERRADA y cerradaEn con la hora
+POST {{orq}}/api/v1/cuentas/{{cuentaNueva}}/cerrar
+Authorization: Bearer {{token}}
+
+### 23. Cerrarla otra vez -> 422
+POST {{orq}}/api/v1/cuentas/{{cuentaNueva}}/cerrar
+Authorization: Bearer {{token}}
+
+### 24. Cerrar la cuenta 1, que tiene dinero -> 422 (primero hay que vaciarla)
+POST {{orq}}/api/v1/cuentas/1/cerrar
+Authorization: Bearer {{token}}
+
+### 25. Transferir A la cuenta cerrada -> 422 ("Las dos cuentas deben estar activas")
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{$random.uuid}}
+
+{ "cuentaOrigenId": 1, "ibanDestino": "{{ibanNueva}}", "importe": 1.00 }
+
+### 26. Las cuentas ligeras ya NO incluyen la cerrada
+GET {{orq}}/api/v1/cuentas/ligeras
+Authorization: Bearer {{token}}
+
+
+### ============ NIVELES DE AISLAMIENTO (RF-7.5) ============
+
+### 27. READ COMMITTED: 2ª lectura distinta y LOST UPDATE (valor final 10: el +1 de B se pierde)
+POST {{orq}}/api/admin/demo/aislamiento?nivel=READ_COMMITTED
+Authorization: Bearer {{tokenAdmin}}
+
+### 28. REPEATABLE READ: lectura repetible y la escritura de A falla con 40001 (valor final 1)
+POST {{orq}}/api/admin/demo/aislamiento?nivel=REPEATABLE_READ
+Authorization: Bearer {{tokenAdmin}}
+
+### 29. SERIALIZABLE: igual de protegido
+POST {{orq}}/api/admin/demo/aislamiento?nivel=SERIALIZABLE
+Authorization: Bearer {{tokenAdmin}}
+
+
+### ============ AUDITORÍA ============
+
+### 30. Deben salir CUENTA_CERRADA (Ana) y TRANSFERENCIA_ANULADA (hecha por el admin)
+GET {{orq}}/api/admin/auditoria?size=10
+Authorization: Bearer {{tokenAdmin}}
+
+### 31. SWAGGER: abre esto en el NAVEGADOR (no aquí):  http://localhost:8081/swagger-ui.html
+GET {{orq}}/v3/api-docs

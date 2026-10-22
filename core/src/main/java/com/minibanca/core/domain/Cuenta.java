@@ -1,5 +1,6 @@
 package com.minibanca.core.domain;
 
+import com.minibanca.core.error.ReglaNegocioException;
 import com.minibanca.core.error.SaldoInsuficienteException;
 import jakarta.persistence.*;
 
@@ -42,6 +43,10 @@ public class Cuenta {
     @Column(name = "creado_en", nullable = false, updatable = false)
     private Instant creadoEn = Instant.now();
 
+    // Lección 9 (RF-2.3): cuándo se cerró. null = sigue abierta.
+    @Column(name = "cerrada_en")
+    private Instant cerradaEn;
+
     // Lado "uno": una cuenta tiene muchos movimientos.
     // mappedBy = "cuenta" -> "el dueño de la relación es el campo 'cuenta' de Movimiento".
     // @OneToMany es LAZY por defecto: los movimientos NO se cargan hasta que se usan.
@@ -68,6 +73,7 @@ public class Cuenta {
     public EstadoCuenta getEstado() { return estado; }
     public Long getVersion() { return version; }
     public Instant getCreadoEn() { return creadoEn; }
+    public Instant getCerradaEn() { return cerradaEn; }
     public List<Movimiento> getMovimientos() { return movimientos; }
 
     // --- Lección 4: comportamiento de dominio ---
@@ -87,5 +93,23 @@ public class Cuenta {
 
     public void acreditar(BigDecimal importe) {
         this.saldo = this.saldo.add(importe);
+    }
+
+    /**
+     * Lección 9 (RF-2.3): cerrar la cuenta. Las reglas viven en la ENTIDAD, como debitar():
+     *  - no se puede cerrar dos veces;
+     *  - solo con saldo 0 (si no, ¿qué hacemos con el dinero? el cliente debe sacarlo antes).
+     * No se borra la fila: los movimientos y transferencias antiguas siguen apuntando a ella.
+     */
+    public void cerrar() {
+        if (!isActiva()) {
+            throw new ReglaNegocioException("La cuenta ya está cerrada");
+        }
+        if (saldo.signum() != 0) {
+            throw new ReglaNegocioException(
+                    "Solo se puede cerrar una cuenta con saldo 0. Saldo actual: " + saldo + " " + divisa);
+        }
+        this.estado = EstadoCuenta.CERRADA;
+        this.cerradaEn = Instant.now();
     }
 }

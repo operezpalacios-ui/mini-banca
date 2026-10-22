@@ -6,6 +6,16 @@ spring:
     # En producción vendrán de variables de entorno reales.
     # Lo buscamos en la carpeta padre (si arrancas desde core/) y en la actual (si arrancas desde mini-banca/)
     import: optional:file:../.env[.properties],optional:file:./.env[.properties]
+  mvc:
+    async:
+      # Lección 9: tiempo máximo de una respuesta en streaming (exportación CSV)
+      request-timeout: 2m
+  # Lección 11: Redis para la caché. Si no hay Redis, la app sigue funcionando (sin caché).
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      connect-timeout: 2s
+      timeout: 500ms        # si Redis tarda más, mejor ir a la BBDD que dejar al usuario esperando
   datasource:
     # Si DB_URL no está definida, usa el Postgres local de Docker
     url: ${DB_URL:jdbc:postgresql://localhost:5432/minibanca}
@@ -36,6 +46,9 @@ management:
       show-details: always    # solo en desarrollo: verás el estado de la BBDD
 
 logging:
+  level:
+    # Lección 11: en el log verás "Cache entry for key '1' found" (acierto) o "No cache entry" (fallo)
+    org.springframework.cache: trace
   pattern:
     # Lección 5: cada línea de log lleva el traceId de su petición -> [traceId=abc123...]
     level: "%5p [traceId=%X{traceId:-}]"

@@ -19,3 +19,6 @@ dist/
 # Otros
 *.zip
 *.log
+
+# Descargas de prueba (lección 9)
+*.csv

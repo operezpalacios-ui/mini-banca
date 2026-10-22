@@ -1,0 +1,82 @@
+:host {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.volver {
+  color: var(--primario);
+  text-decoration: none;
+}
+
+.cabecera-cuenta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cabecera-cuenta h1 {
+  margin-bottom: 0.25rem;
+}
+
+.saldo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.saldo strong {
+  font-size: 1.6rem;
+}
+
+.etiqueta-cerrada {
+  color: var(--error);
+  font-weight: 600;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.filtros label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.filtros .texto {
+  grid-column: span 2;
+}
+
+.botones {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cargo {
+  color: var(--error);
+}
+
+.abono {
+  color: var(--exito);
+}
+
+.paginacion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  gap: 0.5rem;
+}

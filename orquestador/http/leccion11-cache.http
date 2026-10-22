@@ -1,0 +1,41 @@
+### Lección 11: caché con Redis
+# Ten a la vista la CONSOLA DEL CORE en IntelliJ: ahí se ve si hay "acierto" o "fallo" de caché.
+
+@orq = http://localhost:8081
+@ibanDestino = ES9873877867659746200015
+
+### 1. Login de Ana
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "ana@test.com", "password": "ana-12345" }
+
+> {% client.global.set("token", response.body.accessToken); %}
+
+### 2. PRIMERA vez: en la consola del core verás  "No cache entry for key '1'"  y el SELECT a la BBDD
+GET {{orq}}/api/v1/cuentas/ligeras
+Authorization: Bearer {{token}}
+
+### 3. SEGUNDA vez: "Cache entry for key '1' found"  y NINGÚN SELECT. Mira también el tiempo de respuesta.
+GET {{orq}}/api/v1/cuentas/ligeras
+Authorization: Bearer {{token}}
+
+### 4. Resumen mensual (consulta nativa, la más "cara"): primera vez -> SQL
+GET {{orq}}/api/v1/cuentas/1/resumen-mensual?meses=6
+Authorization: Bearer {{token}}
+
+### 5. ...segunda vez -> desde la caché
+GET {{orq}}/api/v1/cuentas/1/resumen-mensual?meses=6
+Authorization: Bearer {{token}}
+
+### 6. Transferencia: cambia el saldo -> tras el COMMIT se borran las chuletas de Ana y del destinatario
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{$random.uuid}}
+
+{ "cuentaOrigenId": 1, "ibanDestino": "{{ibanDestino}}", "importe": 1.00, "concepto": "Probando la caché" }
+
+### 7. Otra vez las cuentas: "No cache entry" (la borramos) y el saldo ya sale con 1 € menos. ¡Nunca un saldo viejo!
+GET {{orq}}/api/v1/cuentas/ligeras
+Authorization: Bearer {{token}}

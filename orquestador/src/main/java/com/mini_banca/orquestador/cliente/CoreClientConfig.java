@@ -35,6 +35,22 @@ public class CoreClientConfig {
                               @Value("${core.connect-timeout}") Duration connectTimeout,
                               @Value("${core.read-timeout}") Duration readTimeout,
                               @Value("${core.api-key}") String apiKey) {
+        return crear(url, connectTimeout, readTimeout, apiKey);
+    }
+
+    /**
+     * Lección 9: un segundo "teléfono", igual pero con MÁS paciencia, solo para descargas (CSV).
+     * Una exportación grande puede tardar más de 5 s en llegar entera, y eso no es un fallo.
+     */
+    @Bean
+    RestClient coreRestClientDescargas(@Value("${core.url}") String url,
+                                       @Value("${core.connect-timeout}") Duration connectTimeout,
+                                       @Value("${core.download-timeout:2m}") Duration downloadTimeout,
+                                       @Value("${core.api-key}") String apiKey) {
+        return crear(url, connectTimeout, downloadTimeout, apiKey);
+    }
+
+    private static RestClient crear(String url, Duration connectTimeout, Duration readTimeout, String apiKey) {
         if (apiKey == null || apiKey.length() < 32) {
             throw new IllegalStateException(
                     "Falta INTERNAL_API_KEY (mínimo 32 caracteres). Añádela al .env (instrucciones de la lección 8).");
@@ -59,7 +75,7 @@ public class CoreClientConfig {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> leerProblema(byte[] cuerpo) {
+    static Map<String, Object> leerProblema(byte[] cuerpo) {
         try {
             return (Map<String, Object>) JSON.readValue(cuerpo, Map.class);
         } catch (Exception e) {

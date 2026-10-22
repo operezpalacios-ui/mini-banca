@@ -1,0 +1,60 @@
+<form class="filtros" [formGroup]="filtros" (ngSubmit)="cargar(0)">
+  <label>Id de usuario <input type="number" min="1" formControlName="usuarioId" placeholder="Todos" /></label>
+  <label>
+    Acción
+    <select formControlName="accion">
+      <option value="">Todas</option>
+      @for (a of acciones; track a) {
+        <option [value]="a">{{ a }}</option>
+      }
+    </select>
+  </label>
+  <label>Desde <input type="date" formControlName="desde" /></label>
+  <label>Hasta <input type="date" formControlName="hasta" /></label>
+  <button type="submit">Buscar</button>
+</form>
+
+@if (error(); as e) {
+  <p class="error">{{ e.mensaje }}</p>
+}
+
+@if (pagina(); as p) {
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Usuario</th>
+        <th>Acción</th>
+        <th>Detalle</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (r of p.content; track r.id) {
+        <tr>
+          <td>{{ r.fecha | date: 'dd/MM/yyyy HH:mm:ss' }}</td>
+          <td>{{ r.usuarioId ?? '—' }}</td>
+          <td class="accion" [class.alerta]="esAlarma(r.accion)">{{ r.accion }}</td>
+          <td>
+            {{ r.detalle || '—' }}
+            @if (r.traceId) {
+              <!-- Con este traceId puedes buscar en los logs TODO lo que pasó en esa petición -->
+              <div class="traza">traceId {{ r.traceId }}</div>
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr><td colspan="4">No hay registros con estos filtros.</td></tr>
+      }
+    </tbody>
+  </table>
+
+  @if (p.page.totalPages > 1) {
+    <nav class="paginacion">
+      <button class="secundario-claro" [disabled]="p.page.number === 0" (click)="cargar(p.page.number - 1)">← Anterior</button>
+      <span>Página {{ p.page.number + 1 }} de {{ p.page.totalPages }} ({{ p.page.totalElements }} registros)</span>
+      <button class="secundario-claro" [disabled]="p.page.number + 1 >= p.page.totalPages" (click)="cargar(p.page.number + 1)">
+        Siguiente →
+      </button>
+    </nav>
+  }
+}

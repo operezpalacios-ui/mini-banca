@@ -1,0 +1,55 @@
+<section class="tarjeta">
+  <h1>Mis cuentas</h1>
+
+  @if (cargando()) {
+    <p>Cargando…</p>
+  } @else if (error(); as e) {
+    <p class="error">{{ e.mensaje }}</p>
+    <button (click)="cargar()">Reintentar</button>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Alias</th>
+          <th>IBAN</th>
+          <th>Estado</th>
+          <th class="num">Saldo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- @for = un bucle. "track c.id" le dice a Angular cómo reconocer cada fila
+             para no repintarlas todas cuando cambie algo. -->
+        @for (c of cuentas(); track c.id) {
+          <!-- routerLink: navega SIN recargar la página a /cuentas/7 -->
+          <tr class="fila" [class.cerrada]="c.estado === 'CERRADA'" [routerLink]="['/cuentas', c.id]">
+            <td>{{ c.alias || '—' }}</td>
+            <td class="iban">{{ c.iban }}</td>
+            <td>{{ c.estado === 'ACTIVA' ? 'Activa' : 'Cerrada' }}</td>
+            <!-- currency: formatea a la española -> 1.234,56 € -->
+            <td class="num">{{ c.saldo | currency: c.divisa }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4">Todavía no tienes cuentas.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>
+
+<section class="tarjeta">
+  <h2>Abrir una cuenta nueva</h2>
+  <form class="fila-form" [formGroup]="nueva" (ngSubmit)="crear()">
+    <input formControlName="alias" placeholder="Alias (opcional), p. ej. Ahorros" maxlength="100" />
+    <select formControlName="divisa">
+      <option value="EUR">EUR</option>
+      <option value="USD">USD</option>
+      <option value="GBP">GBP</option>
+    </select>
+    <button type="submit" [disabled]="creando()">{{ creando() ? 'Abriendo…' : 'Abrir cuenta' }}</button>
+  </form>
+  @if (errorCrear(); as e) {
+    <p class="error">{{ e.mensaje }}</p>
+  }
+</section>

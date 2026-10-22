@@ -8,11 +8,13 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -21,6 +23,8 @@ import org.springframework.web.client.RestClientException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -37,10 +41,14 @@ public class CoreClient {
     private static final Logger log = LoggerFactory.getLogger(CoreClient.class);
 
     private final RestClient rest;
+    private final RestClient descargas;   // lección 9: mismo core, más paciencia (CSV)
     private final CircuitBreakerFactory<?, ?> circuitBreakers;
 
-    public CoreClient(RestClient coreRestClient, CircuitBreakerFactory<?, ?> circuitBreakers) {
+    public CoreClient(@Qualifier("coreRestClient") RestClient coreRestClient,
+                      @Qualifier("coreRestClientDescargas") RestClient coreRestClientDescargas,
+                      CircuitBreakerFactory<?, ?> circuitBreakers) {
         this.rest = coreRestClient;
+        this.descargas = coreRestClientDescargas;
         this.circuitBreakers = circuitBreakers;
     }
 
@@ -68,17 +76,106 @@ public class CoreClient {
                 .body(CuentaDto.class)));
     }
 
-    public Pagina<MovimientoDto> movimientos(Long usuarioId, Long cuentaId, int page, int size) {
+    /**
+     * Lección 9: con filtros (RF-4.2). Los valores van como VARIABLES de la URL ({texto}...):
+     * así RestClient los codifica bien aunque lleven espacios, & o +.
+     * Si los pegáramos tal cual, texto="a&b" partiría la URL en dos parámetros.
+     */
+    public Pagina<MovimientoDto> movimientos(Long usuarioId, Long cuentaId, FiltroMovimientos filtro,
+                                             int page, int size) {
         Contexto ctx = Contexto.actual(usuarioId);
         return proteger(() -> conReintento(() -> rest.get()
-                .uri(u -> u.path("/internal/v1/cuentas/{id}/movimientos")
-                        .queryParam("page", page).queryParam("size", size).build(cuentaId))
+                .uri(u -> {
+                    Map<String, Object> vars = new HashMap<>();
+                    vars.put("id", cuentaId);
+                    u.path("/internal/v1/cuentas/{id}/movimientos").queryParam("page", page).queryParam("size", size);
+                    filtro.comoParametros().forEach((k, v) -> {
+                        u.queryParam(k, "{" + k + "}");
+                        vars.put(k, v);
+                    });
+                    return u.build(vars);
+                })
                 .headers(ctx::aplicar)
                 .retrieve()
                 .body(new ParameterizedTypeReference<Pagina<MovimientoDto>>() {})));
     }
 
+    /**
+     * Lección 9 (RF-4.3): abre la descarga del CSV y devuelve la respuesta SIN LEERLA.
+     *
+     * exchange(..., false) = "no cierres la respuesta al salir": así el controller puede ir
+     * copiando el CSV al navegador a medida que llega del core, sin guardarlo entero en memoria.
+     * Antes miramos el código: si el core dice 404/422, lanzamos el error AHORA, cuando aún
+     * podemos responder al navegador con un ProblemDetail normal.
+     * ⚠️ Quien recibe la respuesta está obligado a cerrarla (try-with-resources).
+     */
+    public ClientHttpResponse abrirExportacion(Long usuarioId, Long cuentaId, FiltroMovimientos filtro) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        return proteger(() -> descargas.get()
+                .uri(u -> {
+                    Map<String, Object> vars = new HashMap<>();
+                    vars.put("id", cuentaId);
+                    u.path("/internal/v1/cuentas/{id}/movimientos/export");
+                    filtro.comoParametros().forEach((k, v) -> {
+                        u.queryParam(k, "{" + k + "}");
+                        vars.put(k, v);
+                    });
+                    return u.build(vars);
+                })
+                .headers(ctx::aplicar)
+                .exchange((request, response) -> {
+                    if (response.getStatusCode().isError()) {
+                        try (response) {
+                            throw new CoreErrorException(response.getStatusCode(),
+                                    CoreClientConfig.leerProblema(response.getBody().readAllBytes()));
+                        }
+                    }
+                    return response;
+                }, false));
+    }
+
+    public List<CuentaLigeraDto> cuentasLigeras(Long usuarioId) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        return proteger(() -> conReintento(() -> rest.get()
+                .uri("/internal/v1/cuentas/ligeras")
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<CuentaLigeraDto>>() {})));
+    }
+
+    public List<ResumenMensualDto> resumenMensual(Long usuarioId, Long cuentaId, int meses) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        return proteger(() -> conReintento(() -> rest.get()
+                .uri(u -> u.path("/internal/v1/cuentas/{id}/resumen-mensual").queryParam("meses", meses).build(cuentaId))
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<ResumenMensualDto>>() {})));
+    }
+
+    public Pagina<TransferenciaDto> misTransferencias(Long usuarioId, String estado, int page, int size) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        return proteger(() -> conReintento(() -> rest.get()
+                .uri(u -> {
+                    u.path("/internal/v1/transferencias").queryParam("page", page).queryParam("size", size);
+                    if (estado != null) u.queryParam("estado", estado);
+                    return u.build();
+                })
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Pagina<TransferenciaDto>>() {})));
+    }
+
     // ===================== ESCRITURAS (NO se reintentan a ciegas) =====================
+
+    /** Lección 9 (RF-2.3). No se reintenta: es una escritura. */
+    public CuentaDto cerrarCuenta(Long usuarioId, Long cuentaId) {
+        Contexto ctx = Contexto.actual(usuarioId);
+        return proteger(() -> rest.post()
+                .uri("/internal/v1/cuentas/{id}/cerrar", cuentaId)
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(CuentaDto.class));
+    }
 
     public CuentaDto crearCuenta(Long usuarioId, CrearCuentaRequest request) {
         Contexto ctx = Contexto.actual(usuarioId);
@@ -220,6 +317,42 @@ public class CoreClient {
                 .headers(ctx::aplicar)
                 .retrieve()
                 .body(new ParameterizedTypeReference<Pagina<AuditoriaDto>>() {})));
+    }
+
+    // ===================== Lección 9: administración =====================
+
+    public Pagina<TransferenciaDto> buscarTransferencias(Long adminId, Long usuarioId, String estado,
+                                                         int page, int size) {
+        Contexto ctx = Contexto.actual(adminId);
+        return proteger(() -> conReintento(() -> rest.get()
+                .uri(u -> {
+                    u.path("/internal/v1/transferencias/admin").queryParam("page", page).queryParam("size", size);
+                    if (usuarioId != null) u.queryParam("usuarioId", usuarioId);
+                    if (estado != null) u.queryParam("estado", estado);
+                    return u.build();
+                })
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Pagina<TransferenciaDto>>() {})));
+    }
+
+    public TransferenciaDto anularTransferencia(Long adminId, Long transferenciaId, AnulacionRequest request) {
+        Contexto ctx = Contexto.actual(adminId);
+        return proteger(() -> rest.post()
+                .uri("/internal/v1/transferencias/{id}/anulacion", transferenciaId)
+                .headers(ctx::aplicar)
+                .body(request)
+                .retrieve()
+                .body(TransferenciaDto.class));
+    }
+
+    public Map<String, Object> demoAislamiento(Long adminId, String nivel) {
+        Contexto ctx = Contexto.actual(adminId);
+        return proteger(() -> rest.post()
+                .uri(u -> u.path("/internal/v1/demo/aislamiento").queryParam("nivel", nivel).build())
+                .headers(ctx::aplicar)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
     }
 
     // ===================== Resiliencia =====================
