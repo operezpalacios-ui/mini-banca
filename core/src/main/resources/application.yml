@@ -1,11 +1,16 @@
+# =====================================================================================
+# Lección 15: este fichero tiene la configuración COMÚN y SEGURA (pensada para producción).
+# Lo propio de cada entorno va en su PERFIL:
+#   application-dev.yml   -> tu ordenador (SQL en consola, .env, detalles de salud...)
+#   application-prod.yml  -> servidor / Docker (logs en JSON, nada de chivatos)
+# Si no se indica ningún perfil, se usa "dev" (ver abajo). En Docker se pone SPRING_PROFILES_ACTIVE=prod.
+# Regla: los SECRETOS nunca se escriben aquí, solo ${VARIABLES} que vienen de fuera.
+# =====================================================================================
 spring:
   application:
     name: core
-  config:
-    # En desarrollo lee DB_USER y DB_PASSWORD del .env de la raíz (si existe).
-    # En producción vendrán de variables de entorno reales.
-    # Lo buscamos en la carpeta padre (si arrancas desde core/) y en la actual (si arrancas desde mini-banca/)
-    import: optional:file:../.env[.properties],optional:file:./.env[.properties]
+  profiles:
+    default: dev
   mvc:
     async:
       # Lección 9: tiempo máximo de una respuesta en streaming (exportación CSV)
@@ -20,20 +25,15 @@ spring:
       repositories:
         enabled: false
   datasource:
-    # Si DB_URL no está definida, usa el Postgres local de Docker
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/minibanca}
+    # Sin valor por defecto: si falta DB_URL, la app NO arranca (mejor que conectarse a donde no debe)
+    url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate      # Hibernate solo comprueba; las tablas las crea Flyway
     open-in-view: false
-    show-sql: true
-    properties:
-      hibernate:
-        # Lección 3: al final de cada petición Hibernate dice cuántas consultas SQL ha lanzado
-        # ("... executing N JDBC statements"). Útil para cazar el N+1; en producción, false.
-        generate_statistics: true
+    show-sql: false
 
 # Lección 8 (RF-0.3): clave compartida con el orquestador. Sin ella, /internal/** responde 401.
 internal:
@@ -43,14 +43,14 @@ management:
   endpoints:
     web:
       exposure:
-        # Lección 13: también métricas. El core NO es público (en Docker su puerto no se publicará),
+        # Lección 13: también métricas. El core NO es público (en Docker su puerto no se publica),
         # por eso no lo protegemos con contraseña; en el orquestador, sí.
         include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: always    # solo en desarrollo: verás el estado de la BBDD y de Redis
+      show-details: never     # en producción no contamos cómo es nuestra infraestructura (dev: always)
       probes:
-        enabled: true         # /actuator/health/liveness y /readiness (los usará Docker)
+        enabled: true         # /actuator/health/liveness y /readiness (los usa Docker)
   metrics:
     tags:
       application: ${spring.application.name}   # cada métrica lleva "application=core"
@@ -64,9 +64,6 @@ info:
     descripcion: Dominio y datos (cuentas, movimientos, transferencias)
 
 logging:
-  level:
-    # Lección 11: en el log verás "Cache entry for key '1' found" (acierto) o "No cache entry" (fallo)
-    org.springframework.cache: trace
   pattern:
     # Lección 5: cada línea de log lleva el traceId de su petición -> [traceId=abc123...]
     level: "%5p [traceId=%X{traceId:-}]"

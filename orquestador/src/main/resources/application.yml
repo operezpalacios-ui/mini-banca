@@ -1,12 +1,15 @@
+# =====================================================================================
+# Lección 15: configuración COMÚN y SEGURA. Lo de cada entorno, en application-dev.yml / -prod.yml.
+# Sin perfil -> "dev". En Docker: SPRING_PROFILES_ACTIVE=prod. Secretos: solo ${VARIABLES}.
+# =====================================================================================
 server:
   port: 8081          # el core usa el 8080; el orquestador, el 8081
 
 spring:
   application:
     name: orquestador
-  config:
-    # Lección 7: leemos JWT_SECRET del .env de la raíz (igual que hace el core con la BBDD)
-    import: optional:file:../.env[.properties],optional:file:./.env[.properties]
+  profiles:
+    default: dev
   mvc:
     async:
       # Lección 9: tiempo máximo de una respuesta en streaming (exportación CSV)
@@ -14,7 +17,7 @@ spring:
 
 # Dónde está el core y cuánto estamos dispuestos a esperarle (RF-0.4)
 core:
-  url: ${CORE_URL:http://localhost:8080}
+  url: ${CORE_URL}      # sin valor por defecto: en producción hay que decirlo SIEMPRE (dev: localhost)
   connect-timeout: 2s   # si en 2 s no consigo ni conectar, el core está caído
   read-timeout: 5s      # si conecta pero tarda más de 5 s en responder, dejo de esperar
   download-timeout: 2m  # lección 9: las descargas CSV pueden tardar más
@@ -26,9 +29,10 @@ transferencias:
   limite-diario: 1000.00
 
 # Lección 10: webs que pueden llamar a la API desde el navegador (separadas por comas).
-# En producción: CORS_ORIGINS=https://minibanca.midominio.com
+# Lección 15: en producción el frontend y la API van por el MISMO dominio (nginx hace de
+# intermediario), así que CORS ni siquiera hace falta: por defecto, ninguna web extra.
 cors:
-  origenes-permitidos: ${CORS_ORIGINS:http://localhost:4200}
+  origenes-permitidos: ${CORS_ORIGINS:}
 
 # Lección 7: tokens JWT. La clave SOLO la conoce el orquestador (RF-11).
 jwt:
@@ -37,12 +41,12 @@ jwt:
   duracion: 15m                # access token de corta duración (RF-1.2)
 
 # Lección 9 (RF-9.1): Swagger en http://localhost:8081/swagger-ui.html
-# En producción: SWAGGER_ENABLED=false (no regalamos el mapa de la API)
+# Lección 15: APAGADO por defecto (no regalamos el mapa de la API); el perfil dev lo enciende.
 springdoc:
   api-docs:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
     persist-authorization: true    # no tener que pegar el token cada vez que recargas
     operations-sorter: method
     tags-sorter: alpha

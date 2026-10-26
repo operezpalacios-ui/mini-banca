@@ -1,0 +1,17 @@
+# Lección 15: perfil "dev" = tu ordenador. Se activa solo si no se indica otro perfil.
+spring:
+  config:
+    # El .env SOLO en desarrollo (JWT_SECRET, INTERNAL_API_KEY...). En producción vienen del entorno.
+    import: optional:file:../.env[.properties],optional:file:./.env[.properties]
+
+core:
+  url: ${CORE_URL:http://localhost:8080}
+
+cors:
+  origenes-permitidos: ${CORS_ORIGINS:http://localhost:4200}   # Angular con "npm start"
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

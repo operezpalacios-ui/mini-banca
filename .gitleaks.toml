@@ -1,0 +1,13 @@
+# Lección 15: configuración de gitleaks (el "detector de secretos" del CI).
+# Usamos todas sus reglas por defecto y solo le decimos qué ficheros contienen valores FALSOS
+# a propósito (las claves de mentira de los tests), para que no dé falsas alarmas.
+title = "Mini banca"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Claves de mentira de los tests: no son secretos reales"
+paths = [
+  '''(core|orquestador)/src/test/resources/application\.properties''',
+]

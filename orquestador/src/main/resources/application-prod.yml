@@ -1,0 +1,8 @@
+# Lección 15: perfil "prod" (Docker / servidor). Se activa con SPRING_PROFILES_ACTIVE=prod.
+# Logs en JSON (formato ECS) para que una herramienta pueda buscarlos por campos (traceId, nivel...).
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: info

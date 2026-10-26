@@ -15,8 +15,10 @@ const PUBLICAS = /\/api\/v1\/auth\/(login|registro|refresh|logout)$/;
  *  3. Si tampoco se puede renovar, lo manda al login.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  // Solo a NUESTRA API: nunca mandamos el token a otras webs
-  if (!req.url.startsWith(API_URL) || PUBLICAS.test(req.url)) {
+  // Solo a NUESTRA API: nunca mandamos el token a otras webs.
+  // (Lección 15: comprobamos "<API_URL>/api/" y no solo API_URL, porque en producción API_URL es ''
+  //  y cualquier dirección "empieza por ''": sin esto, el token se iría a TODAS las webs.)
+  if (!req.url.startsWith(`${API_URL}/api/`) || PUBLICAS.test(req.url)) {
     return next(req);
   }
 

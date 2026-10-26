@@ -5,10 +5,11 @@
 # Las variables ${...} se leen del fichero .env de esta misma carpeta (o del entorno).
 # ":?" = si falta, Docker se niega a arrancar con ese mensaje (mejor que arrancar sin clave).
 #
-#   navegador ──► frontend (nginx :4200) ──► orquestador (:8081) ──► core (interno) ──► postgres / redis (internos)
+#   navegador ──► frontend (nginx :4200) ──/api/──► orquestador ──► core ──► postgres / redis
 #
-# Solo se PUBLICAN al exterior (ports) el frontend y el orquestador. El core, Postgres y Redis
-# solo son accesibles DENTRO de la red de Docker: desde fuera no se puede llegar a ellos.
+# Lección 15: SOLO se publica al exterior (ports) el frontend. Todo lo demás vive DENTRO de la red de
+# Docker: nginx reenvía /api/ al orquestador (proxy inverso), y desde fuera no se llega ni al
+# orquestador, ni al core, ni a la base de datos, ni a Redis. Menos puertas abiertas = menos riesgo.
 
 services:
   postgres:
@@ -41,6 +42,7 @@ services:
       DB_PASSWORD: ${LOCAL_DB_PASSWORD}
       REDIS_URL: redis://redis:6379
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Falta INTERNAL_API_KEY en el .env}
+      SPRING_PROFILES_ACTIVE: prod   # lección 15: logs JSON, sin SQL en consola, sin detalles de salud
     depends_on:
       postgres:
         condition: service_healthy   # no arrancar hasta que Postgres diga "estoy listo"
@@ -53,9 +55,8 @@ services:
       CORE_URL: http://core:8080
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      CORS_ORIGINS: http://localhost:4200
-    ports:
-      - "8081:8081"
+      SPRING_PROFILES_ACTIVE: prod   # Swagger apagado, sin CORS (misma web gracias a nginx)
+    # Sin "ports": el orquestador ya NO es accesible desde fuera, solo a través de nginx
     depends_on:
       core:
         condition: service_healthy
@@ -65,7 +66,8 @@ services:
     ports:
       - "4200:80"
     depends_on:
-      - orquestador
+      orquestador:
+        condition: service_healthy
 
 volumes:
   pgdata:

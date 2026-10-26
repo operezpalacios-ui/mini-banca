@@ -1,0 +1,26 @@
+# Lección 15: perfil "dev" = tu ordenador. Se activa solo si no se indica otro perfil.
+spring:
+  config:
+    # El .env SOLO en desarrollo. En producción las variables vienen del entorno (Docker, el servidor...)
+    # Lo buscamos en la carpeta padre (si arrancas desde core/) y en la actual (si arrancas desde mini-banca/)
+    import: optional:file:../.env[.properties],optional:file:./.env[.properties]
+  datasource:
+    # En desarrollo, si no hay DB_URL, se intenta el Postgres local de Docker
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/minibanca}
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        # Lección 3: al final de cada petición Hibernate dice cuántas consultas SQL ha lanzado
+        # ("... executing N JDBC statements"). Útil para cazar el N+1.
+        generate_statistics: true
+
+management:
+  endpoint:
+    health:
+      show-details: always    # verás el estado de la BBDD y de Redis
+
+logging:
+  level:
+    # Lección 11: en el log verás "Cache entry for key '1' found" (acierto) o "No cache entry" (fallo)
+    org.springframework.cache: trace

@@ -76,6 +76,21 @@ jobs:
       - run: npx ng test --watch=false
       - run: npm run build
 
+  # ---------------------------------------------------------------- SECRETOS (lección 15)
+  # Gitleaks revisa TODO el historial de Git buscando contraseñas, claves y tokens que se hayan
+  # colado en algún commit. Ojo: borrar un secreto en un commit nuevo NO lo quita del historial;
+  # si aparece uno, hay que CAMBIARLO (rotarlo) en el servicio, porque ya hay que darlo por robado.
+  secretos:
+    name: Buscar secretos filtrados (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # descargar el historial COMPLETO, no solo el último commit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # ---------------------------------------------------------------- PRUEBA DE HUMO
   # Levanta la aplicación ENTERA con docker compose (Postgres y Redis incluidos) y comprueba
   # que funciona de punta a punta: registro, login, abrir cuenta... "Humo" porque es una prueba
@@ -98,12 +113,15 @@ jobs:
       - name: Construir y arrancar todo
         run: docker compose up -d --build --wait --wait-timeout 300
 
-      - name: Probar la API de punta a punta
+      - name: Probar la API de punta a punta (todo a través de nginx, como un navegador)
         run: |
           set -e
-          API=http://localhost:8081
-          curl -fsS $API/actuator/health
+          API=http://localhost:4200
+          # Salud del orquestador: desde DENTRO de Docker (por fuera ya no está publicado)
+          docker compose exec -T orquestador wget -qO- http://localhost:8081/actuator/health
           echo
+          # Sin token -> 401 (y llega por el proxy de nginx)
+          test "$(curl -s -o /dev/null -w '%{http_code}' $API/api/v1/cuentas)" = "401"
           curl -fsS -X POST $API/api/v1/auth/registro -H 'Content-Type: application/json' \
                -d '{"email":"humo@test.com","password":"humo-12345","nombre":"Humo"}'
           echo
@@ -114,9 +132,13 @@ jobs:
           echo
           curl -fsS $API/api/v1/cuentas -H "Authorization: Bearer $TOKEN" | jq .
           # Y el frontend responde (nginx)
-          curl -fsS http://localhost:4200/ | grep -q '<app-root>'
+          curl -fsS $API/ | grep -q '<app-root>'
           # Una ruta de Angular servida directamente (try_files de nginx.conf)
-          curl -fsS http://localhost:4200/cuentas | grep -q '<app-root>'
+          curl -fsS $API/cuentas | grep -q '<app-root>'
+          # El orquestador NO está publicado: el puerto 8081 debe estar cerrado
+          if curl -s --max-time 3 http://localhost:8081/actuator/health; then
+            echo "❌ El orquestador está publicado hacia fuera y no debería"; exit 1
+          fi
           echo "✅ Todo funciona de punta a punta"
 
       - name: Si algo falla, enseñar los logs
@@ -130,7 +152,7 @@ jobs:
   # ---------------------------------------------------------------- PUBLICAR IMÁGENES (CD)
   imagenes:
     name: Publicar imágenes en ghcr.io
-    needs: humo
+    needs: [humo, secretos]
     # Solo en un push a la rama principal (no en pull requests)
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
