@@ -18,7 +18,7 @@ COPY src ./src
 RUN mvn -B -q -DskipTests package
 
 # ---------- Etapa 2: imagen final ----------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 # Nunca como root: si alguien lograra colarse en la aplicación, no sería "administrador" del contenedor.
 RUN addgroup -S app && adduser -S app -G app
