@@ -5,7 +5,7 @@
 # Así la imagen que se despliega pesa mucho menos y tiene menos cosas que puedan tener fallos de seguridad.
 
 # ---------- Etapa 1: compilar ----------
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /app
 
 # Primero SOLO el pom.xml y descargamos las librerías. Docker guarda cada paso en "capas":
