@@ -64,7 +64,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "4200:80"
+      - "${WEB_PORT:-4200}:80"   # lección 16: cada entorno en su puerto (pruebas 8091, producción 80)
     depends_on:
       orquestador:
         condition: service_healthy

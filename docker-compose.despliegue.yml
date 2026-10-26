@@ -1,0 +1,11 @@
+# Lección 16 (CD): se usa JUNTO con docker-compose.yml al desplegar desde Jenkins:
+#   docker compose -f docker-compose.yml -f docker-compose.despliegue.yml up -d --no-build
+# Cambia "construir desde el código" por "usar la IMAGEN ya construida y probada" de una versión concreta.
+# Así en producción se despliega EXACTAMENTE lo mismo que pasó los tests, byte a byte.
+services:
+  core:
+    image: ${REGISTRO:?Falta REGISTRO}/mini-banca-core:${TAG:?Falta TAG}
+  orquestador:
+    image: ${REGISTRO:?Falta REGISTRO}/mini-banca-orquestador:${TAG:?Falta TAG}
+  frontend:
+    image: ${REGISTRO:?Falta REGISTRO}/mini-banca-frontend:${TAG:?Falta TAG}
