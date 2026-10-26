@@ -1,0 +1,29 @@
+# Lección 15: DEPENDABOT. Cada semana GitHub revisa las librerías que usas (Maven, npm, imágenes
+# Docker, acciones de GitHub) y, si hay versión nueva o un fallo de seguridad conocido, te abre
+# un Pull Request para actualizarla. Ese PR pasa por el CI: si los tests siguen en verde, lo aceptas.
+# (Va en .github/dependabot.yml: muévelo allí con el comando de la lección.)
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /core
+    schedule:
+      interval: weekly
+  - package-ecosystem: maven
+    directory: /orquestador
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      angular:                 # todas las piezas de Angular juntas en un solo PR
+        patterns: ["@angular/*", "@angular-devkit/*"]
+  - package-ecosystem: docker
+    directories: ["/core", "/orquestador", "/frontend"]
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
