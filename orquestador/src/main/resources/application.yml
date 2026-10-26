@@ -4,6 +4,10 @@
 # =====================================================================================
 server:
   port: 8081          # el core usa el 8080; el orquestador, el 8081
+  # Lección 16: delante tenemos nginx. Que Spring se crea las cabeceras X-Forwarded-* para saber
+  # la dirección real del navegador (https://...). SOLO es seguro porque el orquestador NO está
+  # publicado: nadie puede hablarle directamente y falsificar esas cabeceras, solo nginx.
+  forward-headers-strategy: framework
 
 spring:
   application:
