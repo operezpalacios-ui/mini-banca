@@ -3,7 +3,7 @@
 #   2) final: nginx, un servidor web pequeñísimo que solo sirve esos ficheros. En producción NO hay Node.
 
 # ---------- Etapa 1: compilar ----------
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 # npm ci: instala EXACTAMENTE las versiones del package-lock.json (reproducible). npm install podría cambiarlas.
