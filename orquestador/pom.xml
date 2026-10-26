@@ -30,7 +30,7 @@
 		<java.version>21</java.version>
 		<spring-cloud.version>2025.1.3</spring-cloud.version>
 		<!-- Lección 9: la rama 3.x de springdoc es la de Spring Boot 4 (la 2.x es para Boot 3) -->
-		<springdoc.version>3.0.0</springdoc.version>
+		<springdoc.version>3.1.1</springdoc.version>
 	</properties>
 	<dependencies>
 		<dependency>
