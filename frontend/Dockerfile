@@ -16,4 +16,6 @@ FROM nginx:1.29-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
 EXPOSE 80
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget -qO- http://localhost/ >/dev/null || exit 1
+# 127.0.0.1 y NO "localhost": en esta imagen "localhost" apunta primero a la dirección IPv6 (::1),
+# y nginx solo escucha en IPv4 -> el chequeo fallaba y Docker marcaba el contenedor como "unhealthy".
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
