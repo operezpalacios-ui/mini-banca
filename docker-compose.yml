@@ -56,6 +56,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       SPRING_PROFILES_ACTIVE: prod   # Swagger apagado, sin CORS (misma web gracias a nginx)
+      # Lección 16: casi nunca hace falta (nginx = misma web). Excepción: GitHub Codespaces reescribe la
+      # cabecera Origin a http://localhost:4200, así que ahí hay que permitir ese origen en el .env.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     # Sin "ports": el orquestador ya NO es accesible desde fuera, solo a través de nginx
     depends_on:
       core:
