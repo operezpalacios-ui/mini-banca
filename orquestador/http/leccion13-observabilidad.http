@@ -1,0 +1,87 @@
+### Lección 13: observabilidad (salud, métricas, logs)
+
+@orq = http://localhost:8081
+@core = http://localhost:8080
+@ibanDestino = ES9873877867659746200015
+
+### 1. Salud del orquestador SIN token: solo dice UP o DOWN (el detalle es para admins)
+GET {{orq}}/actuator/health
+
+### 2. Liveness ("¿el proceso está vivo?") y readiness ("¿puede recibir tráfico?"). Los usará Docker.
+GET {{orq}}/actuator/health/liveness
+
+###
+GET {{orq}}/actuator/health/readiness
+
+### 3. Salud del CORE con todo el detalle: base de datos (Neon), Redis (Upstash), disco...
+#     (el core es interno: en producción este puerto no se publica)
+GET {{core}}/actuator/health
+
+### 4. Login de Ana y del admin
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "ana@test.com", "password": "ana-12345" }
+
+> {% client.global.set("token", response.body.accessToken); %}
+
+###
+POST {{orq}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "admin@test.com", "password": "admin-12345" }
+
+> {% client.global.set("tokenAdmin", response.body.accessToken); %}
+
+### 5. Las métricas del orquestador: SIN ser admin -> 403
+GET {{orq}}/actuator/metrics
+Authorization: Bearer {{token}}
+
+### 6. Como admin: la LISTA de todas las métricas que se miden solas (http, jvm, hikari, ...)
+GET {{orq}}/actuator/metrics
+Authorization: Bearer {{tokenAdmin}}
+
+### 7. Genera datos: una transferencia que sale bien...
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{$random.uuid}}
+
+{ "cuentaOrigenId": 1, "ibanDestino": "{{ibanDestino}}", "importe": 1.00, "concepto": "Métricas" }
+
+### 8. ...y otra que choca con el límite diario (1000 €)
+POST {{orq}}/api/v1/transferencias
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{$random.uuid}}
+
+{ "cuentaOrigenId": 1, "ibanDestino": "{{ibanDestino}}", "importe": 5000.00 }
+
+### 9. NUESTRA métrica de negocio: verás COUNT y TOTAL_TIME, y en availableTags los resultados (ok, limite_diario...)
+GET {{orq}}/actuator/metrics/minibanca.transferencias
+Authorization: Bearer {{tokenAdmin}}
+
+### 10. Filtrando por etiqueta: solo las que chocaron con el límite
+GET {{orq}}/actuator/metrics/minibanca.transferencias?tag=resultado:limite_diario
+Authorization: Bearer {{tokenAdmin}}
+
+### 11. Lo mismo en formato Prometheus (texto plano; busca "minibanca_transferencias")
+GET {{orq}}/actuator/prometheus
+Authorization: Bearer {{tokenAdmin}}
+
+### 12. Peticiones HTTP medidas por Spring: cuántas y cuánto tardan, por URL y código de respuesta
+GET {{orq}}/actuator/metrics/http.server.requests
+Authorization: Bearer {{tokenAdmin}}
+
+### 13. En el CORE: aciertos de la caché Redis (lección 11). Pide antes varias veces /cuentas/ligeras
+GET {{core}}/actuator/metrics/cache.gets?tag=result:hit
+
+###
+GET {{core}}/actuator/metrics/cache.gets?tag=result:miss
+
+### 14. Conexiones a la base de datos (pool Hikari): cuántas en uso ahora mismo
+GET {{core}}/actuator/metrics/hikaricp.connections.active
+
+### 15. El "cuadro de mando" que usa el panel de Angular (Admin -> Sistema)
+GET {{orq}}/api/admin/sistema
+Authorization: Bearer {{tokenAdmin}}

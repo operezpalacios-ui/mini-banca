@@ -1,0 +1,10 @@
+# Lección 13: perfil "jsonlogs". Actívalo para ver los logs en JSON (formato ECS de Elastic):
+#   IntelliJ: Run configuration -> Active profiles: jsonlogs
+#   o con la variable de entorno SPRING_PROFILES_ACTIVE=jsonlogs
+# Cada línea es un objeto JSON con fecha, nivel, mensaje... y el traceId (sale del MDC).
+# Para una persona es más incómodo de leer, pero una herramienta (Elastic, Loki, Datadog...) puede
+# buscar y filtrar por campos:  traceId = "8582c3f0..."  ->  todas las líneas de esa petición.
+logging:
+  structured:
+    format:
+      console: ecs

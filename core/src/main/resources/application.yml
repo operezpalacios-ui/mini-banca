@@ -16,6 +16,9 @@ spring:
       url: ${REDIS_URL:redis://localhost:6379}
       connect-timeout: 2s
       timeout: 500ms        # si Redis tarda más, mejor ir a la BBDD que dejar al usuario esperando
+      # Usamos Redis SOLO como caché, no para guardar entidades: así no busca "repositorios Redis"
+      repositories:
+        enabled: false
   datasource:
     # Si DB_URL no está definida, usa el Postgres local de Docker
     url: ${DB_URL:jdbc:postgresql://localhost:5432/minibanca}
@@ -40,10 +43,25 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # Lección 13: también métricas. El core NO es público (en Docker su puerto no se publicará),
+        # por eso no lo protegemos con contraseña; en el orquestador, sí.
+        include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: always    # solo en desarrollo: verás el estado de la BBDD
+      show-details: always    # solo en desarrollo: verás el estado de la BBDD y de Redis
+      probes:
+        enabled: true         # /actuator/health/liveness y /readiness (los usará Docker)
+  metrics:
+    tags:
+      application: ${spring.application.name}   # cada métrica lleva "application=core"
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    nombre: Mini banca - core
+    descripcion: Dominio y datos (cuentas, movimientos, transferencias)
 
 logging:
   level:

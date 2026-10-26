@@ -355,6 +355,27 @@ public class CoreClient {
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
     }
 
+    // ===================== Lección 13: salud del core =====================
+
+    /**
+     * El /actuator/health del core. NO pasa por el circuit breaker a propósito: queremos saber la
+     * verdad aunque el circuito esté abierto. Si el core está DOWN responde 503 con el detalle en JSON,
+     * que llega aquí dentro de la CoreErrorException.
+     */
+    public Map<String, Object> saludCore() {
+        try {
+            Map<String, Object> salud = rest.get()
+                    .uri("/actuator/health")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+            return salud != null ? salud : Map.of("status", "UNKNOWN");
+        } catch (CoreErrorException e) {
+            return e.getProblema().isEmpty() ? Map.of("status", "DOWN") : e.getProblema();
+        } catch (RestClientException e) {
+            return Map.of("status", "DOWN", "error", "No se puede conectar con el core");
+        }
+    }
+
     // ===================== Resiliencia =====================
 
     /** Toda llamada pasa por el circuit breaker "core". Si falla, traducirFallo decide el código HTTP. */

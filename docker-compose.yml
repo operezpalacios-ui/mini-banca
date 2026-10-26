@@ -1,20 +1,71 @@
+# Lección 14: TODA la aplicación con un solo comando:   docker compose up --build
+# (En tu ordenador no hay Docker; este fichero lo usa GitHub Actions para la prueba de humo,
+#  y te servirá en cualquier ordenador o servidor que sí lo tenga.)
+#
+# Las variables ${...} se leen del fichero .env de esta misma carpeta (o del entorno).
+# ":?" = si falta, Docker se niega a arrancar con ese mensaje (mejor que arrancar sin clave).
+#
+#   navegador ──► frontend (nginx :4200) ──► orquestador (:8081) ──► core (interno) ──► postgres / redis (internos)
+#
+# Solo se PUBLICAN al exterior (ports) el frontend y el orquestador. El core, Postgres y Redis
+# solo son accesibles DENTRO de la red de Docker: desde fuera no se puede llegar a ellos.
+
 services:
   postgres:
-    image: postgres:16
-    container_name: minibanca-postgres
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: minibanca
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5432:5432"   # solo para desarrollo; en la lección de Docker lo cerraremos
+      POSTGRES_USER: minibanca
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?Falta LOCAL_DB_PASSWORD en el .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql   # los datos sobreviven aunque se borre el contenedor
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d minibanca"]
+      test: ["CMD-SHELL", "pg_isready -U minibanca -d minibanca"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  core:
+    build: ./core
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/minibanca   # "postgres" = el nombre del servicio de arriba
+      DB_USER: minibanca
+      DB_PASSWORD: ${LOCAL_DB_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Falta INTERNAL_API_KEY en el .env}
+    depends_on:
+      postgres:
+        condition: service_healthy   # no arrancar hasta que Postgres diga "estoy listo"
+      redis:
+        condition: service_healthy
+
+  orquestador:
+    build: ./orquestador
+    environment:
+      CORE_URL: http://core:8080
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      CORS_ORIGINS: http://localhost:4200
+    ports:
+      - "8081:8081"
+    depends_on:
+      core:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - orquestador
 
 volumes:
   pgdata:

@@ -49,6 +49,8 @@ public class SecurityConfig {
                     .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                     // Solo administradores (403 si eres USER)
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                    // Lección 13: las métricas dan pistas internas (rutas, tiempos, memoria...): solo ADMIN
+                    .requestMatchers("/actuator/**").hasRole("ADMIN")
                     // Todo lo demás: hace falta un token válido (401 si no)
                     .anyRequest().authenticated())
             // "Servidor de recursos": acepta peticiones con  Authorization: Bearer <jwt>

@@ -1,0 +1,7 @@
+# Lo que NO se manda a Docker al construir (más rápido, y nunca secretos dentro de una imagen)
+target/
+.idea/
+*.iml
+http/
+*.zip
+.env

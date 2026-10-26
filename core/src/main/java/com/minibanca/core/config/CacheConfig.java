@@ -49,6 +49,8 @@ public class CacheConfig implements CachingConfigurer {
                 .disableCachingNullValues();
 
         return RedisCacheManager.builder(conexion)
+                // Lección 13: cuenta aciertos y fallos -> métrica cache.gets{result=hit|miss}
+                .enableStatistics()
                 .withCacheConfiguration(CUENTAS_LIGERAS, base
                         .entryTtl(Duration.ofMinutes(5))
                         .serializeValuesWith(SerializationPair.fromSerializer(

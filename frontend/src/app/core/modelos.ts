@@ -115,3 +115,19 @@ export const ACCIONES_AUDITORIA = [
   'CUENTA_CERRADA',
   'TRANSFERENCIA_ANULADA',
 ] as const;
+
+/** Lección 13: lo que devuelve /api/admin/sistema */
+export interface EstadoSistema {
+  momento: string;
+  orquestador: { status: string };
+  core: { status: string; components?: Record<string, { status: string }>; error?: string };
+  circuitBreakerCore: {
+    estado: 'CLOSED' | 'OPEN' | 'HALF_OPEN' | string;
+    nota?: string;
+    llamadasRecientes?: number;
+    fallidas?: number;
+    porcentajeFallos?: number;
+    rechazadasSinLlamar?: number;
+  };
+  transferencias: { total: number; porResultado: Record<string, number>; tiempoMedioMs: number; nota: string };
+}

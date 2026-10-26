@@ -1,0 +1,162 @@
+# Lección 14: CI/CD con GitHub Actions.
+#
+# CI (integración continua): CADA vez que haces push, los ordenadores de GitHub descargan tu código,
+#   lo compilan y ejecutan TODOS los tests. Si algo se rompe, te enteras en minutos (y en rojo).
+# CD (entrega continua): si todo está en verde en la rama principal, construye las imágenes Docker
+#   y las publica en el registro de GitHub (ghcr.io), listas para desplegar.
+#
+# Lo verás en GitHub -> tu repositorio -> pestaña "Actions".
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Si haces dos push seguidos, se cancela la ejecución vieja (no tiene sentido terminarla)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- TESTS (en paralelo)
+  core:
+    name: Core (Java) - tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: core/pom.xml
+      # "verify" compila y ejecuta todos los tests. Aquí SÍ hay Docker, así que los de
+      # Testcontainers (PostgreSQL real, concurrencia) se ejecutan, no se saltan.
+      - run: mvn -B verify
+
+  orquestador:
+    name: Orquestador (Java) - tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: orquestador
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: orquestador/pom.xml
+      - run: mvn -B verify
+
+  frontend:
+    name: Frontend (Angular) - tests y build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx ng test --watch=false
+      - run: npm run build
+
+  # ---------------------------------------------------------------- PRUEBA DE HUMO
+  # Levanta la aplicación ENTERA con docker compose (Postgres y Redis incluidos) y comprueba
+  # que funciona de punta a punta: registro, login, abrir cuenta... "Humo" porque es una prueba
+  # rápida de "¿enciende sin echar humo?", no un test exhaustivo.
+  humo:
+    name: Prueba de humo (docker compose)
+    needs: [core, orquestador, frontend]   # solo si los tests han pasado
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Secretos de usar y tirar (generados aquí, nunca escritos en el repo)
+        run: |
+          {
+            echo "LOCAL_DB_PASSWORD=$(openssl rand -hex 16)"
+            echo "INTERNAL_API_KEY=$(openssl rand -hex 32)"
+            echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
+          } > .env
+
+      - name: Construir y arrancar todo
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Probar la API de punta a punta
+        run: |
+          set -e
+          API=http://localhost:8081
+          curl -fsS $API/actuator/health
+          echo
+          curl -fsS -X POST $API/api/v1/auth/registro -H 'Content-Type: application/json' \
+               -d '{"email":"humo@test.com","password":"humo-12345","nombre":"Humo"}'
+          echo
+          TOKEN=$(curl -fsS -X POST $API/api/v1/auth/login -H 'Content-Type: application/json' \
+               -d '{"email":"humo@test.com","password":"humo-12345"}' | jq -r .accessToken)
+          curl -fsS -X POST $API/api/v1/cuentas -H "Authorization: Bearer $TOKEN" \
+               -H 'Content-Type: application/json' -d '{"alias":"Humo","divisa":"EUR"}'
+          echo
+          curl -fsS $API/api/v1/cuentas -H "Authorization: Bearer $TOKEN" | jq .
+          # Y el frontend responde (nginx)
+          curl -fsS http://localhost:4200/ | grep -q '<app-root>'
+          # Una ruta de Angular servida directamente (try_files de nginx.conf)
+          curl -fsS http://localhost:4200/cuentas | grep -q '<app-root>'
+          echo "✅ Todo funciona de punta a punta"
+
+      - name: Si algo falla, enseñar los logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Apagar
+        if: always()
+        run: docker compose down -v
+
+  # ---------------------------------------------------------------- PUBLICAR IMÁGENES (CD)
+  imagenes:
+    name: Publicar imágenes en ghcr.io
+    needs: humo
+    # Solo en un push a la rama principal (no en pull requests)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # para poder subir imágenes al registro de GitHub
+    strategy:
+      matrix:
+        servicio: [core, orquestador, frontend]   # el mismo trabajo, 3 veces, uno por servicio
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Nombre de la imagen (en minúsculas, Docker lo exige)
+        run: echo "IMAGEN=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mini-banca-${{ matrix.servicio }}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # lo crea GitHub solo para esta ejecución: no hay que guardarlo
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.servicio }}
+          push: true
+          # Dos etiquetas: "latest" y el identificador del commit (para saber EXACTAMENTE qué código lleva)
+          tags: |
+            ${{ env.IMAGEN }}:latest
+            ${{ env.IMAGEN }}:${{ github.sha }}

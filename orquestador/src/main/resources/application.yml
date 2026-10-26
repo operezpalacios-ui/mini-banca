@@ -52,7 +52,25 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # Lección 13: health e info son públicos; metrics y prometheus, SOLO ADMIN (SecurityConfig)
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized   # el detalle, solo a un ADMIN; al resto, solo "UP"/"DOWN"
+      roles: ADMIN
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    nombre: Mini banca - orquestador
+    descripcion: API pública (BFF) para el frontend
 
 logging:
   pattern:

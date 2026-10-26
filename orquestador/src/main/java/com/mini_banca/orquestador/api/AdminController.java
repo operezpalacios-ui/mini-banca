@@ -8,6 +8,7 @@ import com.mini_banca.orquestador.api.dto.Pagina;
 import com.mini_banca.orquestador.api.dto.UsuarioDto;
 import com.mini_banca.orquestador.cliente.CoreClient;
 import com.mini_banca.orquestador.seguridad.UsuarioActual;
+import com.mini_banca.orquestador.servicio.EstadoSistemaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,9 +25,18 @@ import java.util.Map;
 public class AdminController {
 
     private final CoreClient core;
+    private final EstadoSistemaService sistema;
 
-    public AdminController(CoreClient core) {
+    public AdminController(CoreClient core, EstadoSistemaService sistema) {
         this.core = core;
+        this.sistema = sistema;
+    }
+
+    /** Lección 13: salud y métricas de todo el sistema en una sola respuesta. */
+    @Operation(summary = "Estado del sistema: salud del core, circuit breaker y métricas de transferencias")
+    @GetMapping("/sistema")
+    public Map<String, Object> sistema() {
+        return sistema.estado();
     }
 
     /** RF-6.1 */

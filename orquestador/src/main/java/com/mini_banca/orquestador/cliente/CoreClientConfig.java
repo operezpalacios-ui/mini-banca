@@ -92,7 +92,7 @@ public class CoreClientConfig {
      *  - Los 4xx (saldo insuficiente, no encontrado...) NO cuentan como fallo: el core está sano.
      */
     @Bean
-    Customizer<Resilience4JCircuitBreakerFactory> circuitBreakerCore() {
+    Customizer<Resilience4JCircuitBreakerFactory> circuitBreakerCore(EstadoCircuito estado) {
         return factory -> {
             factory.configure(builder -> builder
                     .circuitBreakerConfig(CircuitBreakerConfig.custom()
@@ -111,9 +111,11 @@ public class CoreClientConfig {
                     "core");
 
             // Que se vea en el log cada vez que el diferencial "salta" o se rearma
-            factory.addCircuitBreakerCustomizer(cb -> cb.getEventPublisher()
-                    .onStateTransition(evento -> log.warn("CIRCUIT BREAKER '{}': {}",
-                            evento.getCircuitBreakerName(), evento.getStateTransition())), "core");
+            factory.addCircuitBreakerCustomizer(cb -> {
+                estado.registrar(cb);   // lección 13: para enseñarlo en /api/admin/sistema
+                cb.getEventPublisher().onStateTransition(evento -> log.warn("CIRCUIT BREAKER '{}': {}",
+                        evento.getCircuitBreakerName(), evento.getStateTransition()));
+            }, "core");
         };
     }
 }

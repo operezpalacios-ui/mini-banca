@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_URL } from './api.config';
-import { Pagina, RegistroAuditoria, Transferencia, UsuarioAdmin } from './modelos';
+import { EstadoSistema, Pagina, RegistroAuditoria, Transferencia, UsuarioAdmin } from './modelos';
 
 /** Llamadas a /api/admin/**. Si quien llama no es ADMIN, el backend responde 403 (aunque se salte el guard). */
 @Injectable({ providedIn: 'root' })
@@ -42,6 +42,11 @@ export class AdminService {
     if (filtro.desde) params = params.set('desde', filtro.desde);
     if (filtro.hasta) params = params.set('hasta', filtro.hasta);
     return this.http.get<Pagina<RegistroAuditoria>>(`${this.base}/auditoria`, { params });
+  }
+
+  /** Lección 13: salud del core, circuit breaker y métricas de transferencias */
+  sistema(): Observable<EstadoSistema> {
+    return this.http.get<EstadoSistema>(`${this.base}/sistema`);
   }
 
   demoAislamiento(nivel: string): Observable<Record<string, unknown>> {

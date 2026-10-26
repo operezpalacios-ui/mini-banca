@@ -3,6 +3,10 @@ package com.mini_banca.orquestador.servicio;
 import com.mini_banca.orquestador.api.dto.TransferenciaDto;
 import com.mini_banca.orquestador.api.dto.TransferenciaRequest;
 import com.mini_banca.orquestador.cliente.CoreClient;
+import com.mini_banca.orquestador.cliente.CoreErrorException;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,16 +35,62 @@ public class TransferenciaSagaService {
     private final CoreClient core;
     private final NotificacionService notificaciones;
     private final BigDecimal limiteDiario;
+    private final MeterRegistry metricas;
+
+    /** Nombre de la métrica. Por convención: minúsculas y puntos (Prometheus lo convierte a minibanca_transferencias...). */
+    public static final String METRICA = "minibanca.transferencias";
 
     public TransferenciaSagaService(CoreClient core, NotificacionService notificaciones,
-                                    @Value("${transferencias.limite-diario}") BigDecimal limiteDiario) {
+                                    @Value("${transferencias.limite-diario}") BigDecimal limiteDiario,
+                                    MeterRegistry metricas) {
         this.core = core;
         this.notificaciones = notificaciones;
         this.limiteDiario = limiteDiario;
+        this.metricas = metricas;
     }
 
+    /**
+     * Lección 13: MÉTRICAS DE NEGOCIO. Además de las que Spring mide solo (peticiones HTTP, memoria,
+     * conexiones a la BBDD...), medimos lo que le importa al banco: cuántas transferencias salen bien,
+     * cuántas chocan con el límite, cuántas fallan... y cuánto tardan.
+     *
+     * Un Timer cuenta Y cronometra a la vez. La etiqueta (tag) "resultado" separa los casos.
+     * ⚠️ Nunca pongas como etiqueta algo con miles de valores (usuarioId, IBAN...): cada valor distinto
+     * crea una serie nueva en memoria y acabarías tumbando el sistema de métricas.
+     */
     public ResponseEntity<TransferenciaDto> transferir(Long usuarioId, String idempotencyKey,
                                                        TransferenciaRequest request, boolean simularFalloNotificacion) {
+        Timer.Sample cronometro = Timer.start(metricas);
+        String resultado = "error";
+        try {
+            ResponseEntity<TransferenciaDto> respuesta =
+                    ejecutarSaga(usuarioId, idempotencyKey, request, simularFalloNotificacion);
+            boolean repetida = "true".equals(respuesta.getHeaders().getFirst("Idempotent-Replayed"));
+            resultado = repetida ? "repetida" : "ok";
+            if (!repetida) {
+                DistributionSummary.builder(METRICA + ".importe")
+                        .description("Importe de las transferencias realizadas")
+                        .baseUnit("euros")
+                        .register(metricas)
+                        .record(request.importe().doubleValue());
+            }
+            return respuesta;
+        } catch (LimiteDiarioExcedidoException e) {
+            resultado = "limite_diario";
+            throw e;
+        } catch (CoreErrorException e) {
+            resultado = e.esErrorDelCliente() ? "rechazada" : "error";   // 4xx: saldo, cuenta inexistente...
+            throw e;
+        } finally {
+            cronometro.stop(Timer.builder(METRICA)
+                    .description("Transferencias pedidas a través del orquestador")
+                    .tag("resultado", resultado)
+                    .register(metricas));
+        }
+    }
+
+    private ResponseEntity<TransferenciaDto> ejecutarSaga(Long usuarioId, String idempotencyKey,
+                                                          TransferenciaRequest request, boolean simularFalloNotificacion) {
         // ---- PASO 1: límite diario ----
         // ⚠️ Ojo: esta comprobación NO es atómica. Dos transferencias simultáneas podrían pasarla a la vez.
         // Para garantizarlo al 100 % habría que comprobarlo dentro de la transacción del core (con el cerrojo).

@@ -28,6 +28,11 @@ export const ADMIN_ROUTES: Routes = [
         title: 'Auditoría · Admin',
       },
       {
+        path: 'sistema',
+        loadComponent: () => import('./sistema/sistema').then((m) => m.Sistema),
+        title: 'Sistema · Admin',
+      },
+      {
         path: 'laboratorio',
         loadComponent: () => import('./laboratorio/laboratorio').then((m) => m.Laboratorio),
         title: 'Laboratorio · Admin',

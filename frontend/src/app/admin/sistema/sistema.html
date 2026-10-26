@@ -1,0 +1,59 @@
+<button class="secundario-claro" (click)="cargar()">Actualizar ahora</button>
+
+@if (error(); as e) {
+  <p class="error">{{ e.mensaje }}</p>
+}
+
+@if (estado(); as s) {
+  <div class="rejilla">
+    <div class="caja">
+      <h3>Orquestador</h3>
+      <div class="grande" [class]="s.orquestador.status">{{ s.orquestador.status }}</div>
+    </div>
+
+    <div class="caja">
+      <h3>Core</h3>
+      <div class="grande" [class]="s.core.status">{{ s.core.status }}</div>
+      @if (s.core.error) {
+        <small class="error">{{ s.core.error }}</small>
+      }
+      <!-- Los "componentes" del health del core: la base de datos, Redis, el disco... -->
+      @if (s.core.components) {
+        <ul>
+          @for (c of s.core.components | keyvalue; track c.key) {
+            <li>{{ c.key }}: <strong [class]="c.value.status">{{ c.value.status }}</strong></li>
+          }
+        </ul>
+      }
+    </div>
+
+    <div class="caja">
+      <h3>Circuit breaker hacia el core</h3>
+      <div class="grande" [class]="s.circuitBreakerCore.estado">{{ s.circuitBreakerCore.estado }}</div>
+      @if (s.circuitBreakerCore.nota) {
+        <small>{{ s.circuitBreakerCore.nota }}</small>
+      } @else {
+        <ul>
+          <li>Llamadas recientes: {{ s.circuitBreakerCore.llamadasRecientes }}</li>
+          <li>Fallidas: {{ s.circuitBreakerCore.fallidas }} ({{ s.circuitBreakerCore.porcentajeFallos }} %)</li>
+          <li>Rechazadas sin llamar: {{ s.circuitBreakerCore.rechazadasSinLlamar }}</li>
+        </ul>
+      }
+    </div>
+
+    <div class="caja">
+      <h3>Transferencias</h3>
+      <div class="grande">{{ s.transferencias.total }}</div>
+      <ul>
+        @for (r of s.transferencias.porResultado | keyvalue; track r.key) {
+          <li>{{ r.key }}: {{ r.value }}</li>
+        }
+        <li>Tiempo medio: {{ s.transferencias.tiempoMedioMs }} ms</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="pie">
+    {{ s.transferencias.nota }}. Última actualización: {{ s.momento | date: 'HH:mm:ss' }} (se refresca cada 10 s).
+  </p>
+}
