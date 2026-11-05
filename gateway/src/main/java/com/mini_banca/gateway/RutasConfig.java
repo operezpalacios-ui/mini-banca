@@ -1,5 +1,6 @@
 package com.mini_banca.gateway;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
@@ -34,8 +35,10 @@ public class RutasConfig {
     RouteLocator rutas(RouteLocatorBuilder rutas,
                        @Value("${orquestador.url}") String orquestador,
                        @Value("${orquestador.timeout-descargas}") Duration timeoutDescargas,
-                       RedisRateLimiter limitadorApi,
-                       RedisRateLimiter limitadorAuth,
+                       // @Qualifier OBLIGATORIO: limitadorApi es @Primary y, sin esto, Spring lo
+                       // inyecta en LOS DOS parámetros (el login acabaría con el límite general).
+                       @Qualifier("limitadorApi") RedisRateLimiter limitadorApi,
+                       @Qualifier("limitadorAuth") RedisRateLimiter limitadorAuth,
                        KeyResolver ipDelCliente) {
         return rutas.routes()
                 .route("auth", r -> r.order(0)

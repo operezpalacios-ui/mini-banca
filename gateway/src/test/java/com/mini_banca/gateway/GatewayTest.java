@@ -105,6 +105,22 @@ class GatewayTest {
                 .containsEntry("cuerpo", "{\"email\":\"a@b.com\",\"password\":\"x\"}");
     }
 
+    /**
+     * Cada ruta con SU limitador. Aunque aquí no hay Redis (deja pasar), la respuesta dice qué
+     * límite se aplicó. (Bug real: con dos limitadores y uno @Primary, el login usaba el general.)
+     */
+    @Test
+    void elLoginUsaElLimitadorEstrictoYElRestoElGeneral() {
+        web.post().uri("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).bodyValue("{}")
+                .exchange()
+                .expectHeader().valueEquals("X-RateLimit-Burst-Capacity", "60")
+                .expectHeader().valueEquals("X-RateLimit-Requested-Tokens", "6");
+
+        web.get().uri("/api/v1/cuentas").exchange()
+                .expectHeader().valueEquals("X-RateLimit-Burst-Capacity", "40")
+                .expectHeader().valueEquals("X-RateLimit-Requested-Tokens", "1");
+    }
+
     @Test
     void generaUnTraceIdYLoPasaAlOrquestador() {
         var respuesta = web.get().uri("/api/v1/cuentas").exchange()
