@@ -1,0 +1,14 @@
+# Perfil "prod" (Docker / servidor). Se activa con SPRING_PROFILES_ACTIVE=prod.
+# Logs en JSON (formato ECS), igual que el core y el orquestador.
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: info
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus   # en producción, sin el mapa de rutas

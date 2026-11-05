@@ -9,7 +9,7 @@
  *
  * Un solo modelo -> muchas vistas: si cambias algo aquí, cambian todos los diagramas a la vez.
  */
-workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Boot + PostgreSQL + Redis" {
+workspace "Mini banca" "Banco de práctica: Angular + API Gateway + 2 microservicios Spring Boot + PostgreSQL + Redis" {
 
     !identifiers hierarchical
 
@@ -31,7 +31,15 @@ workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Bo
                 serviciosWeb = component "Servicios de datos" "Llaman a la API: cuentas, transferencias, admin." "AuthService, CuentasService, TransferenciasService, AdminService"
             }
 
-            orquestador = container "Orquestador (BFF)" "Única puerta pública de la API: seguridad, saga de transferencias y adaptación para la web." "Java 21, Spring Boot 4" {
+            gateway = container "API Gateway" "Puerta de entrada de la API: enruta al orquestador, limita peticiones por IP, circuit breaker y traceId. No valida el JWT ni tiene lógica de negocio." "Java 21, Spring Cloud Gateway (WebFlux)" {
+                tags "Api"
+                traza = component "TraceIdFilter" "Da a cada petición su X-Trace-Id (o respeta uno válido) y lo pasa al orquestador." "GlobalFilter"
+                limitador = component "Limitador de peticiones" "Cubo de fichas por IP (X-Real-IP de nginx): general para /api/** y estricto para login/registro/refresh. Si Redis falla, deja pasar." "RedisRateLimiter, KeyResolver"
+                rutas = component "Rutas" "auth, descargas (CSV, 150 s) y api; reenvían /api/** sin reescribir y dejan pasar las X-Forwarded-* de nginx." "RouteLocator"
+                cbGateway = component "Circuit breaker" "Si el orquestador no conecta o tarda, responde 503/504 en formato ProblemDetail." "Resilience4j reactivo, FallbackController"
+            }
+
+            orquestador = container "Orquestador (BFF)" "API para la web (detrás del gateway): seguridad, saga de transferencias y adaptación para la web." "Java 21, Spring Boot 4" {
                 tags "Api"
                 seguridad = component "Seguridad" "Valida el JWT, reglas por rol, CORS y cabeceras X-Forwarded." "SecurityConfig, TokenService, JwtConfig"
                 controllers = component "Controllers REST" "Endpoints /api/v1/... para la web." "AuthController, CuentaController, TransferenciaController, AdminController"
@@ -68,7 +76,9 @@ workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Bo
         # ---- Relaciones de nivel 1 y 2 ----
         cliente -> minibanca.web "Usa" "HTTPS"
         admin -> minibanca.web "Administra" "HTTPS"
-        minibanca.web -> minibanca.orquestador "Llama a la API /api/v1" "JSON/HTTPS, JWT (vía nginx)"
+        minibanca.web -> minibanca.gateway "Llama a la API /api/v1" "JSON/HTTPS, JWT (vía nginx)"
+        minibanca.gateway -> minibanca.orquestador "Reenvía /api/**" "JSON/HTTP, JWT + X-Trace-Id"
+        minibanca.gateway -> minibanca.redis "Cubos del limitador" "RESP"
         minibanca.orquestador -> minibanca.core "Llama a /internal/v1" "JSON/HTTP + clave interna"
         minibanca.orquestador -> notificaciones "Envía avisos" "Simulado (log)"
         minibanca.core -> minibanca.bd "Lee y escribe" "JDBC"
@@ -78,7 +88,14 @@ workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Bo
         minibanca.web.paginas -> minibanca.web.serviciosWeb "Pide datos" "Llamada Java"
         minibanca.web.guards -> minibanca.web.serviciosWeb "Consulta la sesión" "Llamada Java"
         minibanca.web.serviciosWeb -> minibanca.web.interceptor "Sus peticiones pasan por" "Llamada Java"
-        minibanca.web.interceptor -> minibanca.orquestador.controllers "Llama a" "JSON/HTTPS"
+        minibanca.web.interceptor -> minibanca.gateway.traza "Llama a" "JSON/HTTPS"
+
+        # ---- Relaciones de nivel 3: gateway ----
+        minibanca.gateway.traza -> minibanca.gateway.rutas "Pasa la petición con su traceId" "Llamada Java"
+        minibanca.gateway.rutas -> minibanca.gateway.limitador "¿Le quedan fichas a esta IP?" "Llamada Java"
+        minibanca.gateway.limitador -> minibanca.redis "Script Lua del cubo de fichas" "RESP"
+        minibanca.gateway.rutas -> minibanca.gateway.cbGateway "Llama a través de" "Llamada Java"
+        minibanca.gateway.cbGateway -> minibanca.orquestador.seguridad "Reenvía" "JSON/HTTP"
 
         # ---- Relaciones de nivel 3: orquestador ----
         minibanca.orquestador.seguridad -> minibanca.orquestador.controllers "Deja pasar con usuario y rol" "Llamada Java"
@@ -119,6 +136,9 @@ workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Bo
                     deploymentNode "frontend" "Único puerto publicado: 4200 -> 80 (pruebas 8091, producción 80)" "nginx 1.31-alpine" {
                         containerInstance minibanca.web
                     }
+                    deploymentNode "gateway" "Sin puerto publicado. Solo nginx le habla. Perfil prod." "eclipse-temurin 21 JRE" {
+                        containerInstance minibanca.gateway
+                    }
                     deploymentNode "orquestador" "Sin puerto publicado. Perfil prod." "eclipse-temurin 21 JRE" {
                         containerInstance minibanca.orquestador
                     }
@@ -153,6 +173,10 @@ workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Bo
             include *
             autolayout lr
         }
+        component minibanca.gateway "ComponentesGateway" "Nivel 3: dentro del API Gateway." {
+            include *
+            autolayout lr
+        }
         component minibanca.orquestador "ComponentesOrquestador" "Nivel 3: dentro del orquestador." {
             include *
             autolayout lr
@@ -163,7 +187,8 @@ workspace "Mini banca" "Banco de práctica: Angular + 2 microservicios Spring Bo
         }
         dynamic minibanca "Transferencia" "Vista dinámica: una transferencia de principio a fin." {
             cliente -> minibanca.web "Rellena el formulario"
-            minibanca.web -> minibanca.orquestador "POST /api/v1/transferencias + JWT + Idempotency-Key"
+            minibanca.web -> minibanca.gateway "POST /api/v1/transferencias + JWT + Idempotency-Key"
+            minibanca.gateway -> minibanca.orquestador "Limitador OK: reenvía con X-Trace-Id"
             minibanca.orquestador -> minibanca.core "¿Cuánto ha transferido hoy?"
             minibanca.orquestador -> minibanca.core "Transferir (misma Idempotency-Key)"
             minibanca.core -> minibanca.bd "Transacción: bloquear cuentas, mover saldo, guardar"

@@ -5,11 +5,12 @@
 # Las variables ${...} se leen del fichero .env de esta misma carpeta (o del entorno).
 # ":?" = si falta, Docker se niega a arrancar con ese mensaje (mejor que arrancar sin clave).
 #
-#   navegador ──► frontend (nginx :4200) ──/api/──► orquestador ──► core ──► postgres / redis
+#   navegador ──► frontend (nginx :4200) ──/api/──► gateway ──► orquestador ──► core ──► postgres / redis
+#                                                      └──► redis (limitador de peticiones)
 #
 # Lección 15: SOLO se publica al exterior (ports) el frontend. Todo lo demás vive DENTRO de la red de
-# Docker: nginx reenvía /api/ al orquestador (proxy inverso), y desde fuera no se llega ni al
-# orquestador, ni al core, ni a la base de datos, ni a Redis. Menos puertas abiertas = menos riesgo.
+# Docker: nginx reenvía /api/ al gateway (proxy inverso), y desde fuera no se llega ni al gateway,
+# ni al orquestador, ni al core, ni a la base de datos, ni a Redis. Menos puertas abiertas = menos riesgo.
 
 services:
   postgres:
@@ -59,9 +60,24 @@ services:
       # Lección 16: casi nunca hace falta (nginx = misma web). Excepción: GitHub Codespaces reescribe la
       # cabecera Origin a http://localhost:4200, así que ahí hay que permitir ese origen en el .env.
       CORS_ORIGINS: ${CORS_ORIGINS:-}
-    # Sin "ports": el orquestador ya NO es accesible desde fuera, solo a través de nginx
+    # Sin "ports": el orquestador ya NO es accesible desde fuera, solo a través del gateway
     depends_on:
       core:
+        condition: service_healthy
+
+  # API GATEWAY: puerta de entrada de la API (limitador por IP, circuit breaker, traceId).
+  # No necesita secretos: ni la clave JWT ni la clave interna.
+  gateway:
+    build: ./gateway
+    environment:
+      ORQUESTADOR_URL: http://orquestador:8081
+      REDIS_URL: redis://redis:6379   # el mismo Redis que la caché del core
+      SPRING_PROFILES_ACTIVE: prod
+    # Sin "ports": solo nginx habla con el gateway
+    depends_on:
+      orquestador:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:
@@ -69,7 +85,7 @@ services:
     ports:
       - "${WEB_PORT:-4200}:80"   # lección 16: cada entorno en su puerto (pruebas 8091, producción 80)
     depends_on:
-      orquestador:
+      gateway:
         condition: service_healthy
 
 volumes:
