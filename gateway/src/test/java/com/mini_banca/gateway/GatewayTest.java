@@ -28,7 +28,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Así comprobamos lo que importa: qué reenvía el gateway y con qué cabeceras.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "orquestador.timeout=1s")   // corto, para probar el 504 sin esperar 20 s
+        // Corto, para probar el 504 sin esperar 20 s... pero no TANTO que en una máquina de CI lenta
+        // (la primera petición "calienta" Netty, Redis...) los tests normales acaben en 504.
+        properties = "orquestador.timeout=3s")
 @AutoConfigureWebTestClient
 class GatewayTest {
 
@@ -48,7 +50,7 @@ class GatewayTest {
             ex.getRequestHeaders().forEach((k, v) -> recibido.put("h:" + k.toLowerCase(), String.join(",", v)));
 
             if (ex.getRequestURI().getPath().equals("/api/v1/lento")) {
-                try { Thread.sleep(3000); } catch (InterruptedException ignored) { }
+                try { Thread.sleep(6000); } catch (InterruptedException ignored) { }
             }
             // Como el orquestador real: devuelve el X-Trace-Id que le llegó
             String traza = ex.getRequestHeaders().getFirst("X-Trace-Id");
