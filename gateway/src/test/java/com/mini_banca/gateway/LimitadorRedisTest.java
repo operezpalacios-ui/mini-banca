@@ -3,13 +3,17 @@ package com.mini_banca.gateway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * El limitador con un REDIS DE VERDAD (Testcontainers lo arranca en Docker).
@@ -29,15 +33,36 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class LimitadorRedisTest {
 
     @Container
-    @ServiceConnection(name = "redis")   // Spring lee del contenedor dónde está Redis y se conecta solo
     static final GenericContainer<?> redis = new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
+
+    /**
+     * Le decimos a Spring DÓNDE está el Redis del contenedor (Docker le da un puerto al azar).
+     * Gana sobre el "redis://127.0.0.1:1" de application.properties de los tests.
+     * (Ojo: sin esto el limitador no encontraría Redis, dejaría pasar TODO y el test fallaría.)
+     */
+    @DynamicPropertySource
+    static void redis(DynamicPropertyRegistry registro) {
+        registro.add("spring.data.redis.url",
+                () -> "redis://" + redis.getHost() + ":" + redis.getMappedPort(6379));
+    }
 
     @Autowired
     WebTestClient web;
 
+    @Autowired
+    ReactiveStringRedisTemplate redisTemplate;
+
     @Test
     void unSegundoLoginSeguidoDesdeLaMismaIpRecibe429() {
         login("198.51.100.1").expectStatus().isEqualTo(503);
+
+        // Comprobación de que el limitador SÍ habla con Redis: ha guardado el cubo de esa IP.
+        // Si esto falla, el problema es la conexión con Redis, no el limitador.
+        // (nombre de la clave: request_rate_limiter.{<ruta>.<ip>}.tokens / .timestamp)
+        assertThat(redisTemplate.keys("request_rate_limiter.{auth.198.51.100.1}.*").collectList().block())
+                .as("El limitador debería haber guardado el cubo de la IP en Redis")
+                .isNotEmpty();
+
         login("198.51.100.1").expectStatus().isEqualTo(429)
                 .expectHeader().exists("X-Trace-Id")
                 // (no miramos el valor exacto: Redis cuenta en segundos enteros y puede valer 0 o 1
