@@ -1,0 +1,5 @@
+# Perfil "dev" = tu ordenador. Se activa solo si no se indica otro perfil.
+# En dev, Angular ("npm start") sigue llamando DIRECTAMENTE al orquestador (localhost:8081).
+# Para probar el gateway a mano: arranca core + orquestador y llama a http://localhost:8082/api/...
+orquestador:
+  url: ${ORQUESTADOR_URL:http://localhost:8081}

@@ -7,5 +7,7 @@ services:
     image: ${REGISTRO:?Falta REGISTRO}/mini-banca-core:${TAG:?Falta TAG}
   orquestador:
     image: ${REGISTRO:?Falta REGISTRO}/mini-banca-orquestador:${TAG:?Falta TAG}
+  gateway:
+    image: ${REGISTRO:?Falta REGISTRO}/mini-banca-gateway:${TAG:?Falta TAG}
   frontend:
     image: ${REGISTRO:?Falta REGISTRO}/mini-banca-frontend:${TAG:?Falta TAG}

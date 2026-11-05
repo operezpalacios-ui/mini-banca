@@ -12,6 +12,10 @@ updates:
     directory: /orquestador
     schedule:
       interval: weekly
+  - package-ecosystem: maven
+    directory: /gateway
+    schedule:
+      interval: weekly
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -20,7 +24,7 @@ updates:
       angular:                 # todas las piezas de Angular juntas en un solo PR
         patterns: ["@angular/*", "@angular-devkit/*"]
   - package-ecosystem: docker
-    directories: ["/core", "/orquestador", "/frontend"]
+    directories: ["/core", "/orquestador", "/gateway", "/frontend"]
     schedule:
       interval: weekly
   - package-ecosystem: github-actions

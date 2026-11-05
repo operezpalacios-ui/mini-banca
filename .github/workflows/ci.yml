@@ -59,6 +59,23 @@ jobs:
           cache-dependency-path: orquestador/pom.xml
       - run: mvn -B verify
 
+  gateway:
+    name: Gateway (Java) - tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: gateway/pom.xml
+      # Aquí hay Docker: el test del limitador con Redis real (Testcontainers) SÍ se ejecuta
+      - run: mvn -B verify
+
   frontend:
     name: Frontend (Angular) - tests y build
     runs-on: ubuntu-latest
@@ -97,7 +114,7 @@ jobs:
   # rápida de "¿enciende sin echar humo?", no un test exhaustivo.
   humo:
     name: Prueba de humo (docker compose)
-    needs: [core, orquestador, frontend]   # solo si los tests han pasado
+    needs: [core, orquestador, gateway, frontend]   # solo si los tests han pasado
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,8 +137,12 @@ jobs:
           # Salud del orquestador: desde DENTRO de Docker (por fuera ya no está publicado)
           docker compose exec -T orquestador wget -qO- http://localhost:8081/actuator/health
           echo
-          # Sin token -> 401 (y llega por el proxy de nginx)
+          docker compose exec -T gateway wget -qO- http://localhost:8082/actuator/health
+          echo
+          # Sin token -> 401 (y llega por nginx -> gateway -> orquestador)
           test "$(curl -s -o /dev/null -w '%{http_code}' $API/api/v1/cuentas)" = "401"
+          # El gateway pone el traceId desde la primera capa
+          curl -s -D - -o /dev/null $API/api/v1/cuentas | grep -qi '^x-trace-id: '
           curl -fsS -X POST $API/api/v1/auth/registro -H 'Content-Type: application/json' \
                -d '{"email":"humo@test.com","password":"humo-12345","nombre":"Humo"}'
           echo
@@ -138,6 +159,10 @@ jobs:
           # El orquestador NO está publicado: el puerto 8081 debe estar cerrado
           if curl -s --max-time 3 http://localhost:8081/actuator/health; then
             echo "❌ El orquestador está publicado hacia fuera y no debería"; exit 1
+          fi
+          # Ni el gateway (8082)
+          if curl -s --max-time 3 http://localhost:8082/actuator/health; then
+            echo "❌ El gateway está publicado hacia fuera y no debería"; exit 1
           fi
           echo "✅ Todo funciona de punta a punta"
 
@@ -161,7 +186,7 @@ jobs:
       packages: write   # para poder subir imágenes al registro de GitHub
     strategy:
       matrix:
-        servicio: [core, orquestador, frontend]   # el mismo trabajo, 3 veces, uno por servicio
+        servicio: [core, orquestador, gateway, frontend]   # el mismo trabajo, 4 veces, uno por servicio
     steps:
       - uses: actions/checkout@v4
 

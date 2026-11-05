@@ -1,7 +1,7 @@
 // =====================================================================================
 // Lección 16: la MISMA idea que .github/workflows/ci.yml, pero para JENKINS (CI + CD).
 //
-//   CI  -> tests de los 3 proyectos (en paralelo) + buscar secretos + construir y publicar imágenes
+//   CI  -> tests de los 4 proyectos (en paralelo) + buscar secretos + construir y publicar imágenes
 //   CD  -> desplegar en PRUEBAS -> comprobar que funciona -> pedir APROBACIÓN -> desplegar en PRODUCCIÓN
 //
 // Jenkins lee este fichero (Groovy) de la raíz del repositorio. Funciona en agentes Linux (lo normal
@@ -118,6 +118,14 @@ pipeline {
                     }
                     post { always { junit allowEmptyResults: true, testResults: 'orquestador/target/surefire-reports/*.xml' } }
                 }
+                stage('Gateway') {
+                    steps {
+                        dir('gateway') {
+                            ejecutar(isUnix() ? 'sh ./mvnw -B verify' : 'mvnw.cmd -B verify')
+                        }
+                    }
+                    post { always { junit allowEmptyResults: true, testResults: 'gateway/target/surefire-reports/*.xml' } }
+                }
                 stage('Frontend') {
                     steps {
                         dir('frontend') {
@@ -151,7 +159,7 @@ pipeline {
                     sh '''
                         set -e
                         echo "$TOKEN" | docker login ghcr.io -u "$USUARIO" --password-stdin
-                        for s in core orquestador frontend; do
+                        for s in core orquestador gateway frontend; do
                             docker build -t "$REGISTRO/mini-banca-$s:$TAG" "$s"
                             docker push "$REGISTRO/mini-banca-$s:$TAG"
                         done
