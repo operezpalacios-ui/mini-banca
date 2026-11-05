@@ -32,7 +32,7 @@ jobs:
       run:
         working-directory: core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -50,7 +50,7 @@ jobs:
       run:
         working-directory: orquestador
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -66,7 +66,7 @@ jobs:
       run:
         working-directory: gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -83,7 +83,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -101,7 +101,7 @@ jobs:
     name: Buscar secretos filtrados (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # descargar el historial COMPLETO, no solo el último commit
       - uses: gitleaks/gitleaks-action@v3
@@ -117,7 +117,7 @@ jobs:
     needs: [core, orquestador, gateway, frontend]   # solo si los tests han pasado
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Secretos de usar y tirar (generados aquí, nunca escritos en el repo)
         run: |
@@ -188,7 +188,7 @@ jobs:
       matrix:
         servicio: [core, orquestador, gateway, frontend]   # el mismo trabajo, 4 veces, uno por servicio
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Nombre de la imagen (en minúsculas, Docker lo exige)
         run: echo "IMAGEN=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mini-banca-${{ matrix.servicio }}" >> "$GITHUB_ENV"
