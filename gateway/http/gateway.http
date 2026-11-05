@@ -1,0 +1,55 @@
+### API GATEWAY: comprueba con tus ojos que funciona.
+# Arranca en IntelliJ: core (8080), orquestador (8081) y GATEWAY (8082). Luego ejecuta estas
+# peticiones UNA A UNA (el triángulo verde) y mira la respuesta. Todas van al GATEWAY (8082).
+
+@gw = http://localhost:8082
+
+### 1. ENRUTADO: pides al gateway y responde el orquestador (aquí, 401 porque falta el token).
+# Mira las cabeceras de la respuesta: X-Trace-Id = el "número de expediente" que pone el gateway.
+GET {{gw}}/api/v1/cuentas
+
+### 2. Login A TRAVÉS del gateway -> guarda {{token}}
+POST {{gw}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@test.com",
+  "password": "ana-12345"
+}
+
+> {%
+    client.global.set("token", response.body.accessToken);
+%}
+
+### 3. Con token: tus cuentas, pasando por el gateway (200)
+GET {{gw}}/api/v1/cuentas?size=3
+Authorization: Bearer {{token}}
+
+### 4. TRACE ID: si mandas uno válido, el gateway lo respeta y lo pasa al orquestador.
+# Busca "mi-prueba-123456" en el log del orquestador: es la MISMA petición.
+GET {{gw}}/api/v1/cuentas?size=1
+Authorization: Bearer {{token}}
+X-Trace-Id: mi-prueba-123456
+
+### 5. LÍMITE DE PETICIONES (necesita Redis: el REDIS_URL de tu .env, o uno local).
+# Ejecuta esta petición unas 11 veces seguidas: las primeras dan 401 (contraseña mala) y
+# después llega un 429 Too Many Requests. Mira la cabecera X-RateLimit-Remaining: va bajando.
+# (Sin Redis el gateway deja pasar todo y esa cabecera vale -1: es a propósito.)
+POST {{gw}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@test.com",
+  "password": "contraseña-mala"
+}
+
+### 6. LO QUE NO ES /api NO PASA: el gateway no enruta /actuator del orquestador (404).
+GET {{gw}}/actuator/prometheus-del-orquestador
+
+### 7. Las rutas que tiene el gateway (solo en dev; en producción está apagado)
+GET {{gw}}/actuator/gateway/routes
+
+### 8. CIRCUIT BREAKER: PARA el orquestador en IntelliJ y ejecuta esta petición.
+# En vez de quedarse colgado, el gateway responde al momento un 503 con un error claro y su traceId.
+GET {{gw}}/api/v1/cuentas
+Authorization: Bearer {{token}}
